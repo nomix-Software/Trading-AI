@@ -79,13 +79,13 @@ pip install -r requirements.txt
 3. Activar la opción **"Permitir trading algorítmico"** en la configuración.
 4. Dejar abierto MT5 mientras se ejecuta la API.
 
-<img src="/images/descarga de mt5.png" alt="Captura de configuración MT5" />
+<img src="./frontend/images/descarga de mt5.png" alt="Captura de configuración MT5" />
 
 ### 3.2 Activar trading algorítmico en MT5
 
 Para que el backend pueda ejecutar operaciones automáticas, es necesario **activar la opción de trading algorítmico** en MetaTrader 5:
 
-<img src="/images/activacion de trading algoritmico.png" alt="Captura de configuración MT5" />
+<img src="./frontend/images/activacion de trading algoritmico.png" alt="Captura de configuración MT5" />
 
 ### 4. Configuración del archivo `.env`
 
