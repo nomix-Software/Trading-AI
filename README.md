@@ -39,11 +39,11 @@ Asegúrate de no instalar la versión estándar más reciente si no coincide con
 
 1. Descargar Python 3.12.2 desde la página oficial: [https://www.python.org/downloads/windows/](https://www.python.org/downloads/windows/)
 
-<img src="images/descarga de python 1.png" alt="Captura de configuración MT5" />
+<img src="./frontend/images/descarga de python 1.png" alt="Captura de configuración MT5" />
 
 2. Durante la instalación, **marca la opción "Add Python to PATH"** para facilitar el uso desde la terminal.
 
-<img src="/images/descarga de python 2.png" alt="Captura de configuración MT5" />
+<img src="./frontend/images/descarga de python 2.png" alt="Captura de configuración MT5" />
 
 ## ⚙️ Configuración Backend
 
