@@ -1,3 +1,5 @@
+# Evitar subir la carpeta del entorno virtual
+venv/
 .env
 .env.local
 .env.*

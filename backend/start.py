@@ -60,7 +60,7 @@ def check_mongodb():
         import pymongo
         import os
         from dotenv import load_dotenv
-        load_dotenv()
+        load_dotenv(dotenv_path="dev.env")
         mongodb_url = os.getenv("MONGODB_URL")
         
         if not mongodb_url:
