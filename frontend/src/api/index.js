@@ -261,15 +261,7 @@ export default {
 
   //  MT5 PERFIL DE USUARIO
 
-  async getMT5Profile(userId) {
-    try {
-      const response = await api.get(`/api/mt5/profile`, { params: { user_id: userId } })
-      return response.data
-    } catch (error) {
-      console.error("❌ Error obteniendo perfil MT5:", error)
-      throw error
-    }
-  },
+
 
   async saveMT5Profile({ login, server, account_type }) {
     try {

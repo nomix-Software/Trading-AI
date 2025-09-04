@@ -45,14 +45,7 @@ export const autoConnectMT5 = createAsyncThunk("mt5/autoconnect", async (_, { re
   }
 })
 
-export const loadMT5Profile = createAsyncThunk("mt5/profile/load", async (_, { rejectWithValue }) => {
-  try {
-    const res = await api.getMT5Profile()
-    return res
-  } catch (err) {
-    return rejectWithValue(err?.response?.data?.detail || err?.message || "Error cargando perfil MT5")
-  }
-})
+
 
 export const saveMT5Profile = createAsyncThunk(
   "mt5/profile/save",
@@ -234,15 +227,8 @@ const mt5Slice = createSlice({
 
       //  PROFILE HANDLERS
 
-      .addCase(loadMT5Profile.fulfilled, (state, action) => {
-        state.profile = action.payload?.profile || null
 
-        if (state.profile) {
-          state.lastLogin = state.profile.login || state.lastLogin
-          state.lastServer = state.profile.server || state.lastServer
-          state.account_type = state.profile.account_type || state.account_type
-        }
-      })
+
       .addCase(saveMT5Profile.fulfilled, (state, action) => {
         state.profile = action.payload?.profile || null
         state.remember = true

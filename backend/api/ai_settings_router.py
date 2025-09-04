@@ -52,8 +52,35 @@ async def get_ai_settings(
     """
     Obtiene la configuración de IA del usuario
     """
-    pass
-
+    try:
+        user_id = str(current_user.id)
+        
+        # Buscar la configuración en la base de datos
+        ai_settings = await db.ai_settings.find_one({"user_id": user_id})
+        
+        if not ai_settings:
+            return JSONResponse(
+                status_code=404,
+                content=AISettingsResponse(
+                    success=False,
+                    message="No se encontró configuración de IA para este usuario",
+                    timestamp=datetime.utcnow().isoformat()
+                ).model_dump()
+            )
+        
+        # Convertir ObjectId a string para la respuesta
+        ai_settings["_id"] = str(ai_settings["_id"])
+        
+        return AISettingsResponse(
+            success=True,
+            ai_settings=ai_settings,
+            message="Configuración de IA obtenida correctamente",
+            timestamp=datetime.utcnow().isoformat()
+        )
+        
+    except Exception as e:
+        logger.error(f"Error obteniendo AI settings: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 @router.post("/ai-settings/validate")
 async def validate_ai_settings_endpoint(
