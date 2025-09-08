@@ -220,17 +220,16 @@ VITE_API_URL=http://127.0.0.1:8000
 3. Acceder al frontend en `http://localhost:5173` y al backend en `http://localhost:8000`
 
 ---
+## 📚 Básicos de Trading
 
-<!-- ## 🖼️ Screenshots
+Este proyecto incluye una serie de documentos educativos para programadores sin experiencia previa en trading.  
+Puedes encontrarlos en la carpeta [`docs/`](./docs/):
 
-_Agregar capturas en esta sección:_
+- [Volumen 1: Introducción al Trading](./docs/basico_trading_vol1.md)  
+- [Volumen 2: Conceptos Clave](./docs/basico_trading_vol2.md)  
+- [Volumen 3: Fundamentos para Trading Algorítmico](./docs/basico_trading_vol3.md)  
 
-1. Instalación de MT5  
-2. Activación de trading algorítmico  
-3. Ejecución del backend  
-4. Ejecución del frontend  
-
---- -->
+Cada volumen tiene una extensión máxima de 4 páginas para facilitar su lectura.
 
 ## 👥 Contribución
 
@@ -257,6 +256,8 @@ Este proyecto es privado para el equipo de desarrollo de **Trading AI**.
 No está permitido el uso sin autorización previa.
 
 ---
+
+
 
 ## 📌 Notas importantes
 

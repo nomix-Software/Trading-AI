@@ -39,6 +39,68 @@ const RiskManagementTab = ({
     return () => clearTimeout(timer)
   }, [])
 
+  // Función para generar estilos de TextField según el estado de bloqueo
+  const getTextFieldStyles = (isLocked) => ({
+    mb: 3,
+    "& .MuiInputLabel-root": { 
+      color: isLocked ? "rgba(255, 255, 255, 0.5)" : "#ffffff" 
+    },
+    "& .MuiOutlinedInput-root": {
+      color: isLocked ? "rgba(255, 255, 255, 0.6)" : "#ffffff",
+      borderRadius: "12px",
+      transition: "all 0.3s ease-in-out",
+      "& fieldset": {
+        borderColor: isLocked ? "rgba(255, 255, 255, 0.3)" : "rgba(25, 118, 210, 0.6)",
+        borderWidth: "2px",
+      },
+      "&:hover fieldset": {
+        borderColor: isLocked ? "rgba(255, 255, 255, 0.4)" : "rgba(25, 118, 210, 0.8)",
+        boxShadow: isLocked ? "none" : "0 0 0 2px rgba(25, 118, 210, 0.15)",
+      },
+      "&.Mui-focused fieldset": {
+        borderColor: isLocked ? "rgba(255, 255, 255, 0.4)" : "#1976d2",
+        boxShadow: isLocked ? "none" : "0 0 0 3px rgba(25, 118, 210, 0.2)",
+      },
+      "&.Mui-disabled": {
+        color: "rgba(255, 255, 255, 0.6)",
+        "& .MuiOutlinedInput-input": {
+          WebkitTextFillColor: "rgba(255, 255, 255, 0.6)",
+        },
+      },
+    },
+    "& .MuiFormHelperText-root": { 
+      color: isLocked ? "rgba(255, 255, 255, 0.5)" : "rgba(255, 255, 255, 0.8)" 
+    },
+  })
+
+  // Función para generar estilos de Select según el estado de bloqueo
+  const getSelectStyles = (isLocked) => ({
+    color: isLocked ? "rgba(255, 255, 255, 0.6)" : "#ffffff",
+    borderRadius: "12px",
+    transition: "all 0.3s ease-in-out",
+    "& .MuiSelect-icon": { 
+      color: isLocked ? "rgba(255, 255, 255, 0.5)" : "#1976d2" 
+    },
+    "& .MuiOutlinedInput-notchedOutline": {
+      borderColor: isLocked ? "rgba(255, 255, 255, 0.3)" : "rgba(25, 118, 210, 0.6)",
+      borderWidth: "2px",
+    },
+    "&:hover .MuiOutlinedInput-notchedOutline": {
+      borderColor: isLocked ? "rgba(255, 255, 255, 0.4)" : "rgba(25, 118, 210, 0.8)",
+      boxShadow: isLocked ? "none" : "0 0 0 2px rgba(25, 118, 210, 0.15)",
+    },
+    "&.Mui-focused .MuiOutlinedInput-notchedOutline": {
+      borderColor: isLocked ? "rgba(255, 255, 255, 0.4)" : "#1976d2",
+      boxShadow: isLocked ? "none" : "0 0 0 3px rgba(25, 118, 210, 0.2)",
+    },
+    "&.Mui-disabled": {
+      color: "rgba(255, 255, 255, 0.6)",
+      "& .MuiSelect-select": {
+        WebkitTextFillColor: "rgba(255, 255, 255, 0.6)",
+      },
+    },
+  })
+
   return (
     <Fade in={showContent} timeout={800}>
       <Box
@@ -212,28 +274,7 @@ const RiskManagementTab = ({
                       type="number"
                       value={riskManagement.totalCapital}
                       disabled
-                      sx={{
-                        mb: 3,
-                        "& .MuiInputLabel-root": { color: "#ffffff" },
-                        "& .MuiOutlinedInput-root": {
-                          color: "#ffffff",
-                          borderRadius: "12px",
-                          transition: "all 0.3s ease-in-out",
-                          "& fieldset": {
-                            borderColor: "rgba(25, 118, 210, 0.6)",
-                            borderWidth: "2px",
-                          },
-                          "&:hover fieldset": {
-                            borderColor: "rgba(25, 118, 210, 0.8)",
-                            boxShadow: "0 0 0 2px rgba(25, 118, 210, 0.15)",
-                          },
-                          "&.Mui-focused fieldset": {
-                            borderColor: "#1976d2",
-                            boxShadow: "0 0 0 3px rgba(25, 118, 210, 0.2)",
-                          },
-                        },
-                        "& .MuiFormHelperText-root": { color: "rgba(255, 255, 255, 0.8)" },
-                      }}
+                      sx={getTextFieldStyles(true)} // Siempre deshabilitado
                       InputProps={{
                         readOnly: true,
                         startAdornment: <Typography sx={{ color: "#1976d2", mr: 1, fontWeight: "bold" }}>$</Typography>,
@@ -242,7 +283,11 @@ const RiskManagementTab = ({
                     />
 
                     <FormControl fullWidth sx={{ mb: 3 }}>
-                      <InputLabel sx={{ color: "#ffffff" }}>{"Riesgo por Operación"}</InputLabel>
+                      <InputLabel sx={{ 
+                        color: riskManagement.isLocked ? "rgba(255, 255, 255, 0.5)" : "#ffffff" 
+                      }}>
+                        {"Riesgo por Operación"}
+                      </InputLabel>
                       <Select
                         value={riskManagement.riskPercentage}
                         onChange={(e) =>
@@ -252,24 +297,7 @@ const RiskManagementTab = ({
                           }))
                         }
                         disabled={riskManagement.isLocked}
-                        sx={{
-                          color: riskManagement.isLocked ? "rgba(255,255,255,0.5)" : "#ffffff",
-                          borderRadius: "12px",
-                          transition: "all 0.3s ease-in-out",
-                          "& .MuiSelect-icon": { color: "#1976d2" },
-                          "& .MuiOutlinedInput-notchedOutline": {
-                            borderColor: "rgba(25, 118, 210, 0.6)",
-                            borderWidth: "2px",
-                          },
-                          "&:hover .MuiOutlinedInput-notchedOutline": {
-                            borderColor: "rgba(25, 118, 210, 0.8)",
-                            boxShadow: "0 0 0 2px rgba(25, 118, 210, 0.15)",
-                          },
-                          "&.Mui-focused .MuiOutlinedInput-notchedOutline": {
-                            borderColor: "#1976d2",
-                            boxShadow: "0 0 0 3px rgba(25, 118, 210, 0.2)",
-                          },
-                        }}
+                        sx={getSelectStyles(riskManagement.isLocked)}
                       >
                         <MenuItem value={1} sx={{ color: "#000000" }}>
                           {"1% - Muy Conservador"}
@@ -429,7 +457,7 @@ const RiskManagementTab = ({
                               <Typography
                                 variant="body2"
                                 sx={{
-                                  color: "#ffffff",
+                                  color: riskManagement.isLocked ? "rgba(255, 255, 255, 0.6)" : "#ffffff",
                                   mb: 2,
                                   fontWeight: "bold",
                                   textShadow: "0 1px 2px rgba(25, 118, 210, 0.4)",
@@ -451,22 +479,30 @@ const RiskManagementTab = ({
                                 disabled={riskManagement.isLocked}
                                 sx={{
                                   mb: 2,
-                                  "& .MuiInputLabel-root": { color: "#ffffff" },
+                                  "& .MuiInputLabel-root": { 
+                                    color: riskManagement.isLocked ? "rgba(255, 255, 255, 0.5)" : "#ffffff" 
+                                  },
                                   "& .MuiOutlinedInput-root": {
-                                    color: "#ffffff",
+                                    color: riskManagement.isLocked ? "rgba(255, 255, 255, 0.6)" : "#ffffff",
                                     borderRadius: "12px",
                                     transition: "all 0.3s ease-in-out",
                                     "& fieldset": {
-                                      borderColor: "rgba(25, 118, 210, 0.5)",
+                                      borderColor: riskManagement.isLocked ? "rgba(255, 255, 255, 0.3)" : "rgba(25, 118, 210, 0.5)",
                                       borderWidth: "2px",
                                     },
                                     "&:hover fieldset": {
-                                      borderColor: "rgba(25, 118, 210, 0.7)",
-                                      boxShadow: "0 0 0 2px rgba(25, 118, 210, 0.1)",
+                                      borderColor: riskManagement.isLocked ? "rgba(255, 255, 255, 0.4)" : "rgba(25, 118, 210, 0.7)",
+                                      boxShadow: riskManagement.isLocked ? "none" : "0 0 0 2px rgba(25, 118, 210, 0.1)",
                                     },
                                     "&.Mui-focused fieldset": {
-                                      borderColor: "#1976d2",
-                                      boxShadow: "0 0 0 3px rgba(25, 118, 210, 0.2)",
+                                      borderColor: riskManagement.isLocked ? "rgba(255, 255, 255, 0.4)" : "#1976d2",
+                                      boxShadow: riskManagement.isLocked ? "none" : "0 0 0 3px rgba(25, 118, 210, 0.2)",
+                                    },
+                                    "&.Mui-disabled": {
+                                      color: "rgba(255, 255, 255, 0.6)",
+                                      "& .MuiOutlinedInput-input": {
+                                        WebkitTextFillColor: "rgba(255, 255, 255, 0.6)",
+                                      },
                                     },
                                   },
                                 }}
