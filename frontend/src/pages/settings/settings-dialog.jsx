@@ -160,7 +160,7 @@ const FOREX_PAIRS = [
   { key: "CHFJPY", label: "CHF/JPY", category: "Cross" },
 ]
 
-
+// Nuevo sistema de tipos de ejecución
 const EXECUTION_TYPES = [
   {
     key: "market",
@@ -179,9 +179,9 @@ const EXECUTION_TYPES = [
   },
 ]
 
-
+// Reference session windows in UTC
 const SESSIONS_UTC = [
-  { key: "sydney", label: "Sídney", start: 22, end: 7 }, 
+  { key: "sydney", label: "Sídney", start: 22, end: 7 }, // spans midnight
   { key: "tokyo", label: "Tokio", start: 0, end: 9 },
   { key: "london", label: "Londres", start: 8, end: 17 },
   { key: "newyork", label: "Nueva York", start: 13, end: 22 },
@@ -319,7 +319,7 @@ const SettingsDialog = ({
           // 1. Cargar perfil guardado (sin contraseña)
           const res = await loadMT5ProfileFromBackendFunc()
 
-          // Si existe ai_settings en el perfil, hidratar estado local
+          // ✅ Si existe ai_settings en el perfil, hidratar estado local
           if (res?.profile?.ai_settings) {
             console.log("[v0] Restaurando ai_settings guardados:", res.profile.ai_settings)
             setAiSettings(res.profile.ai_settings)
@@ -369,12 +369,12 @@ const SettingsDialog = ({
       setMt5State((prev) => ({
         ...prev,
         connected: statusResponse.connected || prev.connected,
-        account: statusResponse.connected ? statusResponse : prev.account, 
+        account: statusResponse.connected ? statusResponse : prev.account, // ✅ mantiene la cuenta previa
         account_type: statusResponse.account_type || prev.account_type || "demo",
         status: statusResponse.connected ? "connected" : prev.status,
       }))
 
-
+      // Si está conectado según el status, intentar obtener info de cuenta
       if (statusResponse.connected) {
         console.log("[v0] MT5 conectado según status, obteniendo información de cuenta...")
         await loadUserMT5StateFunc()
@@ -383,8 +383,8 @@ const SettingsDialog = ({
       console.error("[v0] Error verificando estado MT5:", error)
       setMt5State((prev) => ({
         ...prev,
-        connected: prev.connected,
-        status: prev.status,
+        connected: prev.connected, // ✅ no forzar a false
+        status: prev.status, // ✅ mantiene el estado previo
       }))
     }
   }
@@ -408,13 +408,14 @@ const SettingsDialog = ({
           // No cargar password por seguridad
         }))
 
-
+        // Mostrar notificación de perfil cargado
         showSnackbar("✅ Perfil MT5 cargado automáticamente", "info")
       } else {
         console.log("[v0] No se encontró perfil MT5 guardado")
       }
     } catch (error) {
       console.error("[v0] Error cargando perfil MT5:", error)
+      // No mostrar error al usuario ya que es normal no tener perfil guardado
     }
   }
 
@@ -428,6 +429,8 @@ const SettingsDialog = ({
       console.log("[v0] Respuesta de cuenta MT5:", response)
 
       const isConnected = !!response?.connected
+
+      // 🔹 Actualizamos el estado local
       setMt5State((prev) => ({
         ...prev,
         connected: isConnected,
@@ -436,7 +439,7 @@ const SettingsDialog = ({
         status: isConnected ? "connected" : "idle",
       }))
 
-      // Notificamos al padre (Charts) con setMt5Session
+      // 🔹 Notificamos al padre (Charts) con setMt5Session
       if (setMt5Session) {
         setMt5Session(isConnected ? response : null)
       }
@@ -447,6 +450,7 @@ const SettingsDialog = ({
     } catch (error) {
       console.error("[v0] Error cargando estado MT5:", error)
 
+      // 🔹 Estado local
       setMt5State((prev) => ({
         ...prev,
         connected: false,
@@ -454,7 +458,7 @@ const SettingsDialog = ({
         status: "idle",
       }))
 
-
+      // 🔹 Estado global (padre)
       if (setMt5Session) {
         setMt5Session(null)
       }
@@ -477,7 +481,7 @@ const SettingsDialog = ({
     }
   }, [isConnected, account?.balance, setRiskManagement])
 
-
+  // Opciones por defecto para temporalidades
   const defaultTimeframes = [
     { value: "M1", label: "1 Minuto" },
     { value: "M5", label: "5 Minutos" },
@@ -500,7 +504,7 @@ const SettingsDialog = ({
 
   const weightsValid = Math.abs(totalWeights - 1.0) < 0.01
 
-  // Defaults y helpers ia settings para tipos de ejecucion
+  // Defaults y helpers AI settings - ACTUALIZADO para tipos de ejecución
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const allowedExecutionTypes = aiSettings.allowedExecutionTypes || ["market"]
   const defaultExecutionType =
@@ -525,6 +529,136 @@ const SettingsDialog = ({
     return combinedTimeframes.sort((a, b) => timeframeOrder.indexOf(a) - timeframeOrder.indexOf(b))
   }
 
+  const analyzePair = async (pair) => {
+    console.log("🔍 DEBUG - Estado completo de aiSettings:", aiSettings)
+    console.log("🔍 DEBUG - selectedStrategy:", aiSettings?.selectedStrategy)
+    console.log("🔍 DEBUG - selectedTradingStrategy:", aiSettings?.selectedTradingStrategy)
+    console.log("🔍 DEBUG - aiSettings es null/undefined?", aiSettings === null || aiSettings === undefined)
+
+    // Verificar si aiSettings existe
+    if (!aiSettings) {
+      console.log("❌ DEBUG - aiSettings es null o undefined")
+      showSnackbar("❌ Error: Configuración no inicializada", "error")
+      return
+    }
+
+    console.log("🔍 DEBUG - selectedStrategy desde estado local:", selectedStrategy)
+    console.log("🔍 DEBUG - Comparando valores:")
+    console.log("  - aiSettings.selectedStrategy:", aiSettings.selectedStrategy)
+    console.log("  - selectedStrategy (estado local):", selectedStrategy)
+
+    const userSelectedStrategy = aiSettings.selectedStrategy || selectedStrategy
+    const userSelectedTradingStrategy = aiSettings.selectedTradingStrategy
+
+    console.log("🔍 DEBUG - userSelectedStrategy final:", userSelectedStrategy)
+    console.log("🔍 DEBUG - userSelectedTradingStrategy final:", userSelectedTradingStrategy)
+    console.log("🔍 DEBUG - Validación selectedStrategy:", !!userSelectedStrategy)
+    console.log("🔍 DEBUG - Validación selectedTradingStrategy:", !!userSelectedTradingStrategy)
+
+    if (!userSelectedStrategy) {
+      console.log("❌ DEBUG - selectedStrategy es falsy:", userSelectedStrategy)
+      console.log("❌ DEBUG - Deteniendo ejecución por falta de selectedStrategy")
+      showSnackbar("❌ Debes seleccionar un Tipo de Trader antes de analizar", "error")
+      return
+    }
+
+    if (!userSelectedTradingStrategy) {
+      console.log("❌ DEBUG - selectedTradingStrategy es falsy:", userSelectedTradingStrategy)
+      console.log("❌ DEBUG - Deteniendo ejecución por falta de selectedTradingStrategy")
+      showSnackbar("❌ Debes seleccionar una Estrategia de Trading antes de analizar", "error")
+      return
+    }
+
+    console.log("✅ DEBUG - Todas las validaciones pasaron, construyendo requestBody...")
+    console.log("✅ DEBUG - Valores que se enviarán:")
+    console.log("  - trader_type:", userSelectedStrategy)
+    console.log("  - trading_strategy:", userSelectedTradingStrategy)
+
+    const getSafeTimeframes = (strategies, key) => {
+      const strategy = strategies.find((s) => s.key === key)
+      return strategy?.timeframes || []
+    }
+
+    const getSafeCombinedTimeframes = () => {
+      const traderTypeTimeframes = getSafeTimeframes(TRADING_STRATEGIES, userSelectedStrategy)
+      const tradingStrategyTimeframes = getSafeTimeframes(TRADING_STRATEGIES_ADVANCED, userSelectedTradingStrategy)
+
+      // Combinar ambas arrays y eliminar duplicados
+      const combinedTimeframes = [...new Set([...traderTypeTimeframes, ...tradingStrategyTimeframes])]
+
+      // Ordenar las temporalidades de menor a mayor
+      const timeframeOrder = ["M1", "M5", "M15", "M30", "H1", "H4", "D1", "W1"]
+      return combinedTimeframes.sort((a, b) => timeframeOrder.indexOf(a) - timeframeOrder.indexOf(b))
+    }
+
+    const requestBody = {
+      // Configuración básica
+      timeframe: aiSettings.analysisTimeframe,
+      confluence_threshold: aiSettings.confluenceThreshold,
+
+      // Análisis técnicos habilitados
+      enable_elliott_wave: true,
+      enable_fibonacci: true,
+      enable_chart_patterns: true,
+      enable_support_resistance: true,
+
+      // Pesos de análisis
+      elliott_wave_weight: aiSettings.elliottWaveWeight || 0.25,
+      fibonacci_weight: aiSettings.fibonacciWeight || 0.25,
+      chart_patterns_weight: aiSettings.chartPatternsWeight || 0.3,
+      support_resistance_weight: aiSettings.supportResistanceWeight || 0.2,
+
+      // Gestión de riesgo
+      total_capital: riskManagement.totalBalance || 10000,
+      risk_percentage: riskManagement.riskPerTrade || 2,
+      max_risk_amount: ((riskManagement.totalBalance || 10000) * (riskManagement.riskPerTrade || 2)) / 100,
+      atr_multiplier_sl: 2.0,
+      risk_reward_ratio: 2.0,
+
+      trader_type: userSelectedStrategy,
+      trader_timeframes: getSafeTimeframes(TRADING_STRATEGIES, userSelectedStrategy),
+      trading_strategy: userSelectedTradingStrategy,
+      strategy_timeframes: getSafeTimeframes(TRADING_STRATEGIES_ADVANCED, userSelectedTradingStrategy),
+      combined_timeframes: getSafeCombinedTimeframes(),
+
+      // Tipo de ejecución
+      execution_type: selectedExecutionType || "market",
+      allowed_execution_types: allowedExecutionTypes.length > 0 ? allowedExecutionTypes : ["market"],
+    }
+
+    console.log("🔄 Analizando par con valores REALES seleccionados por el usuario:", {
+      pair,
+      timeframe: aiSettings.analysisTimeframe,
+      confluenceThreshold: aiSettings.confluenceThreshold,
+      executionType: selectedExecutionType,
+      allowedExecutionTypes: allowedExecutionTypes,
+      traderType: userSelectedStrategy, // Valor real seleccionado
+      traderTimeframes: getSafeTimeframes(TRADING_STRATEGIES, userSelectedStrategy),
+      tradingStrategy: userSelectedTradingStrategy, // Valor real seleccionado
+      strategyTimeframes: getSafeTimeframes(TRADING_STRATEGIES_ADVANCED, userSelectedTradingStrategy),
+      combinedTimeframes: getSafeCombinedTimeframes(),
+      riskManagement: {
+        totalBalance: riskManagement.totalBalance,
+        riskPerTrade: riskManagement.riskPerTrade,
+      },
+      requestBody: requestBody,
+    })
+
+    console.log("🚀 DEBUG - RequestBody completo que se enviará:", requestBody)
+    console.log("🚀 DEBUG - Verificando propiedades críticas en requestBody:")
+    console.log("  - requestBody.trader_type:", requestBody.trader_type)
+    console.log("  - requestBody.trading_strategy:", requestBody.trading_strategy)
+
+    try {
+      const response = await api.post(`/api/signals/signals/analyze/${pair}`, requestBody)
+
+      console.log("✅ Respuesta del análisis:", response.data)
+      return response.data
+    } catch (error) {
+      console.error("❌ Error en análisis:", error)
+      throw error
+    }
+  }
 
   const getRandomTimeframeForStrategy = (strategyKey) => {
     const strategy = TRADING_STRATEGIES.find((s) => s.key === strategyKey)
@@ -577,14 +711,14 @@ const SettingsDialog = ({
 
   const selectedTimeZone = aiSettings.sessionsTimeZone || getSystemTimeZone()
 
-  // Asegurar consistencia: si default no está permitido estaria asegurando
+  // Asegurar consistencia: si default no está permitido, ajustar - ACTUALIZADO
   useEffect(() => {
     if (!allowedExecutionTypes.includes(defaultExecutionType) && allowedExecutionTypes.length > 0) {
       setAiSettings((prev) => ({ ...prev, defaultExecutionType: allowedExecutionTypes[0] }))
     }
   }, [allowedExecutionTypes, defaultExecutionType, setAiSettings])
 
-  // Función para toggle de tipos de ejecución
+  // Función para toggle de tipos de ejecución - NUEVA
 
   const toggleExecutionType = (key) => {
     const isEnabled = allowedExecutionTypes.includes(key)
@@ -659,7 +793,7 @@ const SettingsDialog = ({
   }, [
     riskManagement.totalCapital,
     riskManagement.riskPercentage,
-    extendedRiskManagement,
+    extendedRiskManagement, // Agregar dependencia de configuraciones avanzadas
     account,
     setRiskManagement,
     showSnackbar,
@@ -759,7 +893,7 @@ const SettingsDialog = ({
     try {
       await api.disconnectMT5Account()
 
-      // Limpia el estado local
+      // 🔹 Limpia el estado local
       setMt5State({
         connected: false,
         account: null,
@@ -770,7 +904,7 @@ const SettingsDialog = ({
         autoReconnect: false,
       })
 
-      // Limpia el formulario
+      // 🔹 Limpia el formulario
       setMt5Form({
         type: "demo",
         server: "",
@@ -782,7 +916,7 @@ const SettingsDialog = ({
       console.log("[v0] Desconexión MT5 completada")
       showSnackbar("✅ Desconectado de MetaTrader 5", "success")
 
-      // Aquí notificamos al padre que no hay sesioonn
+      // 🔥 Aquí notificamos al padre que no hay sesión
       if (setMt5Session) {
         setMt5Session(null)
       }
@@ -825,8 +959,44 @@ const SettingsDialog = ({
     }
   }
 
+  const handleAutoReconnect = async () => {
+    if (!userId) return
 
+    console.log("[v0] Intentando auto-reconexión MT5...")
+    setMt5State((prev) => ({ ...prev, status: "loading" }))
 
+    try {
+      const response = await api.autoConnectMT5()
+
+      if (response.connected) {
+        // Cargar información completa de la cuenta
+        await loadUserMT5StateFunc()
+        showSnackbar("✅ Reconectado automáticamente a MT5", "success")
+      } else {
+        setMt5State((prev) => ({ ...prev, status: "idle" }))
+        showSnackbar("⚠️ No se pudo reconectar automáticamente", "warning")
+      }
+    } catch (error) {
+      console.error("[v0] Error en auto-reconexión:", error)
+      setMt5State((prev) => ({ ...prev, status: "error", error: error.message }))
+      showSnackbar("❌ Error en auto-reconexión", "error")
+    }
+  }
+  const handleSaveConfiguration = () => {
+    if (settingsTab === 2) {
+      // Pestaña de confluencias de IA - Solo configuración de IA
+      handleSaveAIConfiguration()
+    } else if (settingsTab === 0) {
+      // Pestaña de MT5 - Solo configuración de cuenta
+      const mt5Payload = {
+        user_id: userId,
+        login: mt5Form.login || "",
+        server: mt5Form.server || "",
+        account_type: mt5Form.type || "demo",
+      }
+      dispatch(saveMT5Profile(mt5Payload))
+    }
+  }
   const mapAiSettingsToBackend = (aiSettings) => {
     return {
       // Configuración básica
@@ -837,7 +1007,7 @@ const SettingsDialog = ({
       atr_multiplier_sl: aiSettings.atrMultiplierSl ?? 2.0,
       risk_reward_ratio: aiSettings.riskRewardRatio ?? 2.0,
 
-      // Análisis habilitados 
+      // Análisis habilitados (mapear correctamente)
       enable_elliott_wave: aiSettings.enabledAnalyses?.includes("elliott_wave") ?? true,
       enable_fibonacci: aiSettings.enabledAnalyses?.includes("fibonacci") ?? true,
       enable_chart_patterns: aiSettings.enabledAnalyses?.includes("chart_patterns") ?? true,
@@ -853,7 +1023,7 @@ const SettingsDialog = ({
       execution_type: aiSettings.selectedExecutionType || "market",
       allowed_execution_types: [aiSettings.selectedExecutionType || "market"],
 
-      // Tipos de trader y estrategias
+      // Tipos de trader y estrategias (campos correctos para el backend)
       trader_type: aiSettings.selectedStrategy || null,
       trading_strategy: aiSettings.selectedTradingStrategy || null,
       trader_timeframes: [aiSettings.analysisTimeframe || "H1"],
@@ -934,6 +1104,7 @@ const SettingsDialog = ({
 
   useEffect(() => {
     if (settingsTab === 2) {
+      // Asumiendo que la pestaña 2 es confluencias de IA
       loadAIConfiguration()
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -947,7 +1118,7 @@ const SettingsDialog = ({
       if (response.success && response.ai_settings) {
         console.log("✅ Configuración de IA cargada:", response.ai_settings)
 
-        // fijarse que esten todas las props aca que en el back para ver cuales faltan o cuales no estan en el back
+        // Mapear del backend al estado local
         const backendToFrontend = {
           analysisTimeframe: response.ai_settings.timeframe || "H1",
           confluenceThreshold: response.ai_settings.confluence_threshold ?? 0.6,
@@ -967,6 +1138,7 @@ const SettingsDialog = ({
         showSnackbar("✅ Configuración de IA cargada", "success")
       } else {
         console.log("ℹ️ No hay configuración guardada, usando valores por defecto")
+        // Usar configuración por defecto
       }
     } catch (error) {
       console.error("❌ Error cargando configuración de IA:", error)
@@ -979,6 +1151,7 @@ const SettingsDialog = ({
       console.log("🔄 Guardando configuración de IA específica...")
       console.log("🔍 aiSettings actuales:", aiSettings)
 
+      // Validar que tenemos los datos necesarios
       if (!aiSettings.selectedStrategy) {
         showSnackbar("❌ Error: Debes seleccionar un Tipo de Trader", "error")
         return
@@ -989,7 +1162,7 @@ const SettingsDialog = ({
         return
       }
 
-
+      // Validar pesos
       const totalWeights =
         (aiSettings.elliottWaveWeight || 0) +
         (aiSettings.fibonacciWeight || 0) +
@@ -1001,6 +1174,7 @@ const SettingsDialog = ({
         return
       }
 
+      // Preparar payload solo con configuración de IA
       const aiConfigPayload = mapAiSettingsToBackend(aiSettings)
 
       console.log("📤 Enviando payload de IA:", aiConfigPayload)
@@ -1179,8 +1353,10 @@ const SettingsDialog = ({
         <Button
           onClick={() => {
             if (settingsTab === 2) {
+              // Solo para la pestaña de confluencias de IA
               handleSaveAIConfiguration()
             } else {
+              // Para otras pestañas, mantener la lógica original
               try {
                 const userId = localStorage.getItem("userId")
 
