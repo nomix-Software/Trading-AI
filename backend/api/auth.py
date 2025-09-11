@@ -7,7 +7,7 @@ from passlib.context import CryptContext
 from jose import JWTError, jwt
 from pydantic import BaseModel, Field, EmailStr
 import os
-
+from fastapi import Response, Request
 from database.models import User, UserLogin, UserRegister, UserResponse, ExtendedRiskConfig
 from database.connection import db_manager
 
@@ -187,7 +187,7 @@ async def register(user_data: UserRegister):
 
 
 @router.post("/login", response_model=Token)
-async def login(user_credentials: UserLogin):
+async def login(user_credentials: UserLogin, response: Response):
     """Iniciar sesión"""
     user = await authenticate_user(user_credentials.email, user_credentials.password)
     if not user:
@@ -206,7 +206,16 @@ async def login(user_credentials: UserLogin):
     refresh_token = create_refresh_token(
         data={"sub": user.email, "user_id": str(user.id)}
     )
-
+    # Set refresh token as httpOnly, secure cookie
+    response.set_cookie(
+        key="refresh_token",
+        value=refresh_token,
+        httponly=False,
+        secure=False,  # Cambia a False si pruebas en local sin HTTPS
+        samesite="Lax",  # None en prod, lax en dev
+        max_age=REFRESH_TOKEN_EXPIRE_DAYS * 24 * 60 * 60,
+        path="/"
+    )
     return Token(
     access_token=access_token,
     refresh_token=refresh_token,
@@ -435,4 +444,53 @@ async def lock_risk_configuration(
         source=payload.source,
         mt5_snapshot=payload.mt5_snapshot or {},
         extended_risk_config=payload.extended_risk_config
+    )
+
+
+@router.get("/session", response_model=Token)
+async def recover_session(request: Request, response: Response):
+    """Recuperar sesión usando refresh_token de la cookie httpOnly"""
+    refresh_token = request.cookies.get("refresh_token")
+    if not refresh_token:
+        raise HTTPException(status_code=401, detail="No refresh token cookie found")
+    try:
+        payload = jwt.decode(refresh_token, SECRET_KEY, algorithms=[ALGORITHM])
+        email = payload.get("sub")
+        user_id = payload.get("user_id")
+        token_type = payload.get("type")
+        if email is None or user_id is None or token_type != "refresh":
+            raise HTTPException(status_code=401, detail="Invalid refresh token")
+    except JWTError:
+        raise HTTPException(status_code=401, detail="Invalid refresh token")
+
+    user = await get_user_by_id(user_id)
+    if not user or not user.is_active:
+        raise HTTPException(status_code=401, detail="Inactive or not found user")
+
+    # Generar nuevo access_token y refresh_token
+    access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+    access_token = create_access_token(
+        data={"sub": user.email, "user_id": str(user.id)},
+        expires_delta=access_token_expires
+    )
+    new_refresh_token = create_refresh_token(
+        data={"sub": user.email, "user_id": str(user.id)}
+    )
+    # Renovar la cookie con el nuevo refresh_token
+    response.set_cookie(
+        key="refresh_token",
+        value=new_refresh_token,
+        httponly=True,
+        secure=False,  # Cambia a False si pruebas en local sin HTTPS
+        samesite="None",
+        max_age=REFRESH_TOKEN_EXPIRE_DAYS * 24 * 60 * 60,
+        path="/"
+    )
+    return Token(
+        access_token=access_token,
+        refresh_token=new_refresh_token,
+        expires_in=ACCESS_TOKEN_EXPIRE_MINUTES * 60,
+        user_id=str(user.id),
+        username=user.username,
+        email=user.email
     )

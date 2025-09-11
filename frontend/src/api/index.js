@@ -205,6 +205,18 @@ export default {
     }
   },
 
+  // Recuperar sesión usando la cookie httpOnly
+  async recoverSession() {
+    try {
+      const response = await api.get("/api/auth/session", { withCredentials: true })
+      const data = response.data
+      return data
+    } catch (error) {
+      console.error("❌ Error recuperando sesión:", error)
+      throw error
+    }
+  },
+
 
   //  MT5 CONEXIÓN Y CUENTA
 

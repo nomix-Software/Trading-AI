@@ -138,7 +138,8 @@ app.add_middleware(
         "http://127.0.0.1:3000", 
         "http://127.0.0.1:5173",
         "http://localhost:8080",
-        "http://127.0.0.1:8080"
+        "http://127.0.0.1:8080",
+        "http://127.0.0.1:8000"
     ],
     allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
@@ -147,42 +148,43 @@ app.add_middleware(
     max_age=3600,
 )
 
+
 # middleware para cors
-@app.middleware("http")
-async def cors_error_handler(request: Request, call_next):
-    """
-    Middleware que asegura que TODOS los errores incluyan headers CORS
-    """
-    try:
-        response = await call_next(request)
-        cors_headers = {
-            "Access-Control-Allow-Origin": "*",
-            "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
-            "Access-Control-Allow-Headers": "*",
-            "Access-Control-Allow-Credentials": "true",
-        }
-        
-        for key, value in cors_headers.items():
-            response.headers[key] = value
-            
-        return response
-        
-    except Exception as e:
-        logger.error(f"Error en middleware CORS: {e}", exc_info=True)
-        return JSONResponse(
-            status_code=500,
-            content={
-                "error": "Internal Server Error",
-                "detail": str(e),
-                "timestamp": datetime.utcnow().isoformat()
-            },
-            headers={
-                "Access-Control-Allow-Origin": "*",
-                "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
-                "Access-Control-Allow-Headers": "*",
-                "Access-Control-Allow-Credentials": "true",
-            }
-        )
+# @app.middleware("http")
+# async def cors_error_handler(request: Request, call_next):
+#     """
+#     Middleware que asegura que TODOS los errores incluyan headers CORS
+#     """
+#     try:
+#         response = await call_next(request)
+#         cors_headers = {
+#             "Access-Control-Allow-Origin": "*",
+#             "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
+#             "Access-Control-Allow-Headers": "*",
+#             "Access-Control-Allow-Credentials": "true",
+#         }
+#         
+#         for key, value in cors_headers.items():
+#             response.headers[key] = value
+#             
+#         return response
+#         
+#     except Exception as e:
+#         logger.error(f"Error en middleware CORS: {e}", exc_info=True)
+#         return JSONResponse(
+#             status_code=500,
+#             content={
+#                 "error": "Internal Server Error",
+#                 "detail": str(e),
+#                 "timestamp": datetime.utcnow().isoformat()
+#             },
+#             headers={
+#                 "Access-Control-Allow-Origin": "*",
+#                 "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
+#                 "Access-Control-Allow-Headers": "*",
+#                 "Access-Control-Allow-Credentials": "true",
+#             }
+#         )
 
 # MIDDLEWARE para manejar ObjectId serialization 
 @app.middleware("http")
@@ -264,7 +266,8 @@ async def options_handler(full_path: str):
     return JSONResponse(
         content={"message": "OK"},
         headers={
-            "Access-Control-Allow-Origin": "*",
+            # "Access-Control-Allow-Origin": "*",  # <-- Cambiado para evitar problemas con cookies y credenciales
+            # Si necesitas exponer el origen, usa el valor de origen permitido o déjalo a cargo de CORSMiddleware
             "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS, PATCH",
             "Access-Control-Allow-Headers": "*",
             "Access-Control-Allow-Credentials": "true",
