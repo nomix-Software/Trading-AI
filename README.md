@@ -59,7 +59,8 @@ Activar entorno:
 
 - Windows (PowerShell):
   ```bash
-  venv\Scripts\activate
+source venv/Scripts/activate
+
   ```
 - Linux / Mac:
   ```bash
@@ -264,3 +265,4 @@ No está permitido el uso sin autorización previa.
 - El proyecto requiere **MetaTrader 5** abierto y con la opción de trading algorítmico activa para funcionar con datos en tiempo real.
 - El archivo `.env` **no debe subirse al repositorio** por razones de seguridad (añadido en `.gitignore`).
 - MongoDB debe estar corriendo en segundo plano para que la aplicación almacene y consulte datos correctamente.
+
