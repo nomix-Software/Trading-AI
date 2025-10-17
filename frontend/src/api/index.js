@@ -2,7 +2,7 @@
 import axios from "axios"
 import { jwtDecode } from "jwt-decode"
 
-//  CONFIGURACIÓN DE API 
+//  CONFIGURACIÓN DE API
 const API_BASE_URL = import.meta.env.VITE_API_URL || "http://127.0.0.1:8000"
 
 const api = axios.create({
@@ -171,9 +171,7 @@ const generateMockSignals = (count = 10) => {
   return signals
 }
 
-
 export default {
-
   //  AUTENTICACIÓN
 
   async login(email, password) {
@@ -204,7 +202,6 @@ export default {
       throw error
     }
   },
-
 
   //  MT5 CONEXIÓN Y CUENTA
 
@@ -258,10 +255,7 @@ export default {
     }
   },
 
-
   //  MT5 PERFIL DE USUARIO
-
-
 
   async saveMT5Profile({ login, server, account_type }) {
     try {
@@ -282,7 +276,6 @@ export default {
       throw error
     }
   },
-
 
   //  MT5 DATOS DE MERCADO
 
@@ -358,7 +351,6 @@ export default {
     return prices
   },
 
-
   //  MT5 TRADING Y ÓRDENES
 
   async executeOrder(orderData) {
@@ -397,7 +389,6 @@ export default {
       return { positions: [] }
     }
   },
-
 
   //  CONFIGURACIÓN DE IA
 
@@ -455,7 +446,6 @@ export default {
     }
   },
 
-
   //  SEÑALES Y ANÁLISIS
 
   async getAvailablePairs() {
@@ -499,11 +489,10 @@ export default {
       }
 
       const defaultConfig = {
-
         timeframe: "H1",
         confluence_threshold: 0.6,
         trader_type: "swing_trader",
-        trading_strategy: "algorithmic", 
+        trading_strategy: "algorithmic",
 
         // Análisis técnicos habilitados
         enable_elliott_wave: true,
@@ -588,7 +577,6 @@ export default {
         config: finalConfig,
       })
 
-
       const response = await api.post(`/api/signals/signals/analyze/${pair}`, finalConfig)
 
       console.log("✅ Respuesta del análisis:", {
@@ -606,7 +594,6 @@ export default {
         pair,
         timeframe,
       })
-
 
       if (error.response?.status === 422) {
         const errorDetails = error.response.data?.detail || error.response.data
@@ -651,7 +638,6 @@ export default {
     }
   },
 
-
   //  GRÁFICOS Y VISUALIZACIÓN
 
   async generateChartImage(signalData) {
@@ -678,7 +664,6 @@ export default {
       return { success: false, error: error.message }
     }
   },
-
 
   //  GESTIÓN DE RIESGO
 
@@ -733,7 +718,6 @@ export default {
     }
   },
 
-
   //  UTILIDADES Y SISTEMA
 
   async getSystemStatus() {
@@ -785,7 +769,6 @@ export default {
     }
   },
 
-
   //  DATOS ADICIONALES
 
   async getRealTimeData() {
@@ -807,7 +790,6 @@ export default {
       return { news: [] }
     }
   },
-
 
   //  UTILIDADES DE CONFIGURACIÓN
 
@@ -917,6 +899,172 @@ export default {
           },
         },
       ],
+    }
+  },
+
+  //  CURSOS Y RESPUESTAS
+
+  async saveCourseAnswer(courseId, volumeId, questionId, selectedAnswer, isCorrect, timeSpent, points) {
+    try {
+      console.log("[v0] Saving course answer:", {
+        courseId,
+        volumeId,
+        questionId,
+        selectedAnswer,
+        isCorrect,
+        timeSpent,
+        points,
+      })
+
+      const answerData = {
+        course_id: courseId,
+        volume_id: volumeId,
+        question_id: questionId,
+        answer: selectedAnswer,
+        is_correct: isCorrect,
+        time_spent: timeSpent,
+        points_earned: points || (isCorrect ? 10 : 0),
+        timestamp: new Date().toISOString(),
+      }
+
+      const response = await api.post("/api/courses/answers", answerData)
+
+      console.log("[v0] Course answer saved successfully:", response)
+      return response.data
+    } catch (error) {
+      console.error("[v0] Error saving course answer:", error)
+
+      if (error.response?.status === 400) {
+        throw new Error("Esta pregunta ya fue respondida anteriormente")
+      } else if (error.response?.status === 404) {
+        throw new Error("Curso no encontrado")
+      } else if (error.response?.status === 500) {
+        throw new Error("Error interno del servidor al guardar la respuesta")
+      } else {
+        throw new Error("Error de conexión al guardar la respuesta")
+      }
+    }
+  },
+
+  async getCourseProgress(courseId) {
+    try {
+      const response = await api.get(`/api/courses/${courseId}/progress`)
+      return response.data
+    } catch (error) {
+      console.error("❌ Error obteniendo progreso del curso:", error)
+      return {
+        course_id: courseId,
+        total_progress: 0,
+        volumes_progress: {},
+        completed_questions: [],
+        total_questions: 0,
+        correct_answers: 0,
+      }
+    }
+  },
+
+async getVolumeProgress(courseId, volumeId) {
+  try {
+    const response = await api.get(`/api/courses/${courseId}/volumes/${volumeId}/progress`)
+    return response.data
+  } catch (error) {
+    console.error("❌ Error obteniendo progreso del volumen:", error)
+    
+    // Si el endpoint no existe (404), devolver datos por defecto
+    if (error.response?.status === 404) {
+      console.log("⚠️ Endpoint de volumen no encontrado, usando datos por defecto")
+      return {
+        volume_id: volumeId,
+        progress: 0,
+        completed_questions: [],
+        total_questions: 10, // Valor por defecto
+        correct_answers: 0,
+        is_completed: false,
+      }
+    }
+    
+    throw error
+  }
+},
+
+  async getUserCourses() {
+    try {
+      const response = await api.get("/api/courses/user")
+      return response.data
+    } catch (error) {
+      console.error("❌ Error obteniendo cursos del usuario:", error)
+      return {
+        courses: [],
+        total_courses: 0,
+        completed_courses: 0,
+        in_progress_courses: 0,
+      }
+    }
+  },
+
+  async startCourse(courseId) {
+    try {
+      const response = await api.post(`/api/courses/${courseId}/start`)
+      return response.data
+    } catch (error) {
+      console.error("❌ Error iniciando curso:", error)
+      throw error
+    }
+  },
+
+  async completeCourse(courseId) {
+    try {
+      const response = await api.post(`/api/courses/${courseId}/complete`)
+      return response.data
+    } catch (error) {
+      console.error("❌ Error completando curso:", error)
+      throw error
+    }
+  },
+
+  async getCourseAnswers(courseId, volumeId = null) {
+    try {
+      const params = volumeId ? { volume_id: volumeId } : {}
+      const response = await api.get(`/api/courses/${courseId}/answers`, { params })
+      return response.data
+    } catch (error) {
+      console.error("❌ Error obteniendo respuestas del curso:", error)
+      return {
+        answers: [],
+        total_answers: 0,
+      }
+    }
+  },
+
+  async checkAnswerExists(courseId, volumeId, questionId) {
+    try {
+      const response = await api.get(`/api/courses/${courseId}/answers/check`, {
+        params: {
+          volume_id: volumeId,
+          question_id: questionId,
+        },
+      })
+      return response.data.exists || false
+    } catch (error) {
+      console.error("❌ Error verificando respuesta existente:", error)
+      return false
+    }
+  },
+
+  async getCoursesStats() {
+    try {
+      const response = await api.get("/api/courses/stats")
+      return response.data
+    } catch (error) {
+      console.error("❌ Error obteniendo estadísticas de cursos:", error)
+      return {
+        total_courses: 0,
+        completed_courses: 0,
+        in_progress_courses: 0,
+        total_questions_answered: 0,
+        correct_answers_percentage: 0,
+        average_course_completion: 0,
+      }
     }
   },
 }

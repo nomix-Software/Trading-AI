@@ -57,9 +57,9 @@ python -m venv venv
 
 Activar entorno:
 
-- Windows (PowerShell):
+- Windows (terminal de vs):
   ```bash
-  venv\Scripts\activate
+   source venv/Scripts/activate
   ```
 - Linux / Mac:
   ```bash
