@@ -1,6 +1,6 @@
 // coursesData.js - Estructura de datos para todos los cursos (SOLO datos estáticos)
 
-// ... existing code ...
+
 
 export const coursesData = [
   {
@@ -10,8 +10,8 @@ export const coursesData = [
     category: "Trading Fundamentals",
     difficulty: "Principiante",
     totalQuestions: 90,
-    estimatedTime: 180, // minutes
-    image: "/technical-analysis-charts.png",
+    estimatedTime: 180, 
+    image: "/images/basicosDeTrading.jpg",
     hasVolumes: true,
     students: 1250,
     rating: 4.8,
@@ -31,7 +31,7 @@ export const coursesData = [
           "Forex y Pares de Divisas",
           "Brokers y Plataformas",
         ],
-        image: "/technical-analysis-charts.png",
+        image: "/images/fundamentosVolumen1.jpeg",
         objectives: [
           "Comprender qué es el trading y sus conceptos fundamentales",
           "Identificar los diferentes participantes del mercado",
@@ -49,7 +49,7 @@ export const coursesData = [
         estimatedTime: "60 min",
         difficulty: "Intermedio",
         topics: ["Análisis Técnico Fundamental", "Patrones Gráficos", "Gestión de Riesgo", "Psicología del Trading"],
-        image: "/placeholder-69ysc.png",
+        image: "/images/fundamentosVolumen2.jpg",
         objectives: [
           "Dominar las bases del análisis técnico",
           "Reconocer patrones gráficos importantes",
@@ -72,7 +72,7 @@ export const coursesData = [
           "Retrocesos de Fibonacci",
           "Sistemas de Trading Avanzados",
         ],
-        image: "/placeholder-cz5ma.png",
+        image: "/images/fundamentosVolumen3.jpeg",
         objectives: [
           "Identificar confluencias técnicas efectivas",
           "Aplicar la teoría de ondas de Elliott",
@@ -92,8 +92,7 @@ export const coursesData = [
     difficulty: "Avanzado",
     totalQuestions: 40,
     estimatedTime: 120,
-    image: "/placeholder-69ysc.png",
-    // <CHANGE> agregando volúmenes al curso de Análisis Técnico Avanzado
+    image: "/images/analisisTecnico.jpg",
     hasVolumes: true,
     students: 890,
     rating: 4.9,
@@ -114,7 +113,7 @@ export const coursesData = [
         estimatedTime: "45 min",
         difficulty: "Avanzado",
         topics: ["RSI Avanzado", "MACD", "Estocástico", "Williams %R", "CCI"],
-        image: "/placeholder-69ysc.png",
+        image: "/images/AnalisisTecnicoAvanzadoVolumen1.jpg",
         objectives: [
           "Interpretar señales avanzadas del RSI",
           "Utilizar MACD para timing de entrada",
@@ -131,7 +130,7 @@ export const coursesData = [
         estimatedTime: "45 min",
         difficulty: "Avanzado",
         topics: ["Patrones Armónicos", "Divergencias", "Patrones de Continuación", "Patrones de Reversión"],
-        image: "/placeholder-69ysc.png",
+        image: "/images/AnalisisTecnicoAvanzadoVolumen2.jpg",
         objectives: [
           "Identificar patrones armónicos",
           "Detectar divergencias regulares y ocultas",
@@ -148,7 +147,7 @@ export const coursesData = [
         estimatedTime: "30 min",
         difficulty: "Avanzado",
         topics: ["Top-Down Analysis", "Confluencias", "Sincronización", "Backtesting"],
-        image: "/placeholder-69ysc.png",
+        image: "/images/AnalisisTecnicoAvanzadoVolumen3.jpg",
         objectives: [
           "Realizar análisis top-down efectivo",
           "Sincronizar múltiples timeframes",
@@ -166,8 +165,8 @@ export const coursesData = [
     difficulty: "Principiante",
     totalQuestions: 20,
     estimatedTime: 90,
-    image: "/placeholder-gpez7.png",
-    // <CHANGE> agregando volúmenes al curso de Fundamentos de Criptomonedas
+    image: "/images/FundamentosCriptos.jpg",
+
     hasVolumes: true,
     students: 2100,
     rating: 4.6,
@@ -188,7 +187,7 @@ export const coursesData = [
         estimatedTime: "30 min",
         difficulty: "Principiante",
         topics: ["Blockchain Basics", "Bitcoin History", "Mining", "Wallets"],
-        image: "/placeholder-gpez7.png",
+        image: "/images/FundamentosdeCriptomonedasVolumen1.jpg",
         objectives: [
           "Entender qué es blockchain",
           "Conocer la historia de Bitcoin",
@@ -204,7 +203,7 @@ export const coursesData = [
         estimatedTime: "35 min",
         difficulty: "Principiante",
         topics: ["Ethereum", "Altcoins", "Smart Contracts", "NFTs"],
-        image: "/placeholder-gpez7.png",
+        image: "/images/FundamentosdeCriptomonedasVolumen2.jpg",
         objectives: [
           "Conocer las principales altcoins",
           "Entender smart contracts",
@@ -220,7 +219,7 @@ export const coursesData = [
         estimatedTime: "25 min",
         difficulty: "Intermedio",
         topics: ["DeFi Protocols", "Yield Farming", "Crypto Trading", "Security"],
-        image: "/placeholder-gpez7.png",
+        image: "/images/FundamentosdeCriptomonedasVolumen3.jpg",
         objectives: [
           "Utilizar protocolos DeFi",
           "Entender yield farming",
@@ -238,8 +237,7 @@ export const coursesData = [
     difficulty: "Intermedio",
     totalQuestions: 28,
     estimatedTime: 150,
-    image: "/placeholder-gi752.png",
-    // <CHANGE> agregando volúmenes al curso de Estrategias de Day Trading
+    image: "/images/dayTrading.jpeg",
     hasVolumes: true,
     students: 750,
     rating: 4.7,
@@ -254,7 +252,7 @@ export const coursesData = [
         estimatedTime: "50 min",
         difficulty: "Intermedio",
         topics: ["Scalping Basics", "Momentum Indicators", "Quick Entries", "Exit Strategies"],
-        image: "/placeholder-gi752.png",
+        image: "/images/EstrategiasDayTradingVolumen1.jpeg",
         objectives: [
           "Dominar técnicas de scalping",
           "Identificar momentum del mercado",
@@ -270,7 +268,7 @@ export const coursesData = [
         estimatedTime: "50 min",
         difficulty: "Intermedio",
         topics: ["Breakout Patterns", "False Breakouts", "Reversal Signals", "Volume Analysis"],
-        image: "/placeholder-gi752.png",
+        image: "/images/EstrategiasDayTradingVolumen2.jpg",
         objectives: [
           "Identificar breakouts verdaderos",
           "Evitar false breakouts",
@@ -286,7 +284,7 @@ export const coursesData = [
         estimatedTime: "50 min",
         difficulty: "Intermedio",
         topics: ["Trading Psychology", "Risk Management", "Position Sizing", "Performance Analysis"],
-        image: "/placeholder-gi752.png",
+        image: "/images/EstrategiasDayTradingVolumen3.jpg",
         objectives: [
           "Controlar emociones en trading",
           "Implementar gestión de riesgo",
@@ -304,8 +302,7 @@ export const coursesData = [
     difficulty: "Avanzado",
     totalQuestions: 32,
     estimatedTime: 100,
-    image: "/placeholder-cz5ma.png",
-    // <CHANGE> agregando volúmenes al curso de Gestión de Riesgo Profesional
+    image: "/images/gestionRiesgo.jpg",
     hasVolumes: true,
     students: 560,
     rating: 4.8,
@@ -320,7 +317,7 @@ export const coursesData = [
         estimatedTime: "35 min",
         difficulty: "Avanzado",
         topics: ["Kelly Criterion", "Fixed Fractional", "Volatility Sizing", "Risk Per Trade"],
-        image: "/placeholder-cz5ma.png",
+        image: "/images/GestiónRiesgoProfesionalVolumen1.jpg",
         objectives: [
           "Aplicar el criterio de Kelly",
           "Usar métodos de fracción fija",
@@ -336,7 +333,7 @@ export const coursesData = [
         estimatedTime: "35 min",
         difficulty: "Avanzado",
         topics: ["Portfolio Diversification", "Correlation Analysis", "Sector Allocation", "Rebalancing"],
-        image: "/placeholder-cz5ma.png",
+        image: "/images/GestiónRiesgoProfesionalVolumen2.png",
         objectives: [
           "Diversificar portfolios efectivamente",
           "Analizar correlaciones entre activos",
@@ -352,7 +349,7 @@ export const coursesData = [
         estimatedTime: "30 min",
         difficulty: "Avanzado",
         topics: ["Drawdown Control", "Performance Metrics", "Risk Ratios", "Recovery Strategies"],
-        image: "/placeholder-cz5ma.png",
+        image: "/images/GestiónRiesgoProfesionalVolumen3.jpeg",
         objectives: [
           "Controlar drawdowns máximos",
           "Calcular métricas de performance",
@@ -370,7 +367,7 @@ export const coursesData = [
     difficulty: "Avanzado",
     totalQuestions: 45,
     estimatedTime: 200,
-    image: "/placeholder-itd5v.png",
+    image: "/images/tradingAlgoritmico.jpeg",
     hasVolumes: true,
     students: 320,
     rating: 4.5,
@@ -385,7 +382,7 @@ export const coursesData = [
         estimatedTime: "60 min",
         difficulty: "Intermedio",
         topics: ["Python Basics", "Data Structures", "Financial Libraries", "API Connections"],
-        image: "/placeholder-itd5v.png",
+        image: "/images/TradingAlgorítmicoVolumen1.jpeg",
         objectives: [
           "Aprender Python básico para trading",
           "Conectar con APIs de brokers",
@@ -401,7 +398,7 @@ export const coursesData = [
         estimatedTime: "80 min",
         difficulty: "Avanzado",
         topics: ["Algorithm Design", "Backtesting", "Optimization", "Live Trading"],
-        image: "/placeholder-itd5v.png",
+        image: "/images/TradingAlgorítmicoVolumen2.jpeg",
         objectives: [
           "Diseñar algoritmos de trading",
           "Realizar backtesting efectivo",
@@ -418,7 +415,7 @@ export const coursesData = [
         estimatedTime: "60 min",
         difficulty: "Avanzado",
         topics: ["Cloud Deployment", "Monitoring Systems", "Error Handling", "Performance Analysis"],
-        image: "/placeholder-itd5v.png",
+        image: "/images/TradingAlgorítmicoVolumen3.jpeg",
         objectives: [
           "Desplegar algoritmos en la nube",
           "Implementar monitoreo",
