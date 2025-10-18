@@ -15,6 +15,7 @@ import pandas as pd
 from api.auth import router as auth_router
 from api.pairs import router as pairs_router
 from api.signals import router as signals_router
+from api.courses import router as courses_router
 # Nuevos routers importados
 from api.charts_endpoints import router as charts_router  # Router de gráficos
 from api.mt5_endpoints import router as mt5_router  # Router de integración MT5
@@ -276,6 +277,7 @@ async def options_handler(full_path: str):
 app.include_router(auth_router, prefix="/api", tags=["authentication"])
 app.include_router(pairs_router, prefix="/api/pairs", tags=["pairs"])
 app.include_router(signals_router, prefix="/api/signals", tags=["signals"])
+app.include_router(courses_router, prefix="/api", tags=["courses"])
 app.include_router(charts_router, prefix="/api/charts", tags=["charts", "visualization"])
 app.include_router(mt5_router, prefix="/api/mt5", tags=["metatrader5", "trading"])
 
@@ -296,6 +298,7 @@ async def root():
             "authentication": "/api/auth",
             "pairs": "/api/pairs", 
             "signals": "/api/signals",
+            "courses": "/api/courses",
             "charts": "/api/charts",
             "mt5_integration": "/api/mt5"
         },
@@ -325,8 +328,8 @@ async def health_check():
             "metatrader5": mt5_status
         },
         "endpoints": {
-            "total": 4,
-            "active": ["auth", "pairs", "signals", "charts", "mt5"]
+            "total": 5,
+            "active": ["auth", "pairs", "signals", "courses", "charts", "mt5"]
         },
         "timestamp": datetime.utcnow().isoformat()
     }

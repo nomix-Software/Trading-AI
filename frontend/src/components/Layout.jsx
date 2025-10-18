@@ -37,7 +37,8 @@ import {
   SmartToy,
   AccountBalanceWallet,
   Timeline,
-  FiberManualRecord
+  FiberManualRecord,
+  School
 } from '@mui/icons-material'
 import './layout.css'
 
@@ -75,6 +76,7 @@ const Layout = () => {
       { name: 'Dashboard', href: '/dashboard', icon: <BarChart /> },
       { name: 'Noticias', href: '/dashboard/news', icon: <Article /> },
       { name: 'Gráficos', href: '/dashboard/charts', icon: <TrendingUp /> },
+      { name: "Cursos", href: "/dashboard/cursos", icon: <School /> },
     ] : [])
   ]
 
