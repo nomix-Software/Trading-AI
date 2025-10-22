@@ -58,7 +58,6 @@ def check_mongodb():
     """Verifica la conexión a MongoDB"""
     try:
         import pymongo
-        import os
         from dotenv import load_dotenv
         load_dotenv()
         mongodb_url = os.getenv("MONGODB_URL")
@@ -75,6 +74,27 @@ def check_mongodb():
     except Exception as e:
         logger.error(f"❌ Error conectando a MongoDB: {e}")
         logger.info("Asegúrate de que MongoDB esté ejecutándose")
+        return False
+
+def check_kaleido():
+    """Verifica Kaleido y descarga Chrome si es necesario"""
+    try:
+        import kaleido
+        logger.info("✅ Kaleido instalado")
+    except ImportError:
+        logger.warning("⚠️  Kaleido no está instalado. Instalando...")
+        subprocess.check_call([sys.executable, "-m", "pip", "install", "--upgrade", "kaleido"])
+        import kaleido
+        logger.info("✅ Kaleido instalado correctamente")
+
+    try:
+        # Esto descarga Chromium si no lo encuentra
+        kaleido.get_chrome_sync()
+        logger.info("✅ Chrome para Kaleido disponible")
+        return True
+    except Exception as e:
+        logger.error(f"❌ No se pudo descargar Chrome automáticamente: {e}")
+        logger.info("Por favor instala Google Chrome manualmente")
         return False
 
 def create_directories():
@@ -105,7 +125,6 @@ def start_backend():
     """Inicia el servidor backend FastAPI"""
     logger.info("🚀 Iniciando servidor backend...")
     
-    # Cambiar al directorio backend
     backend_dir = Path("backend")
     if not backend_dir.exists():
         logger.error("❌ Directorio backend no encontrado")
@@ -117,7 +136,6 @@ def start_backend():
         import uvicorn
         from config import settings
         
-        # Fix para Windows use 127.0.0.1 en lugar de 0.0.0.0
         host = "127.0.0.1" if settings.host == "0.0.0.0" else settings.host
         
         uvicorn.run(
@@ -161,16 +179,17 @@ def show_status():
     logger.info("📊 Estado del sistema Trading AI:")
     logger.info("=" * 50)
     
-    # Verificaciones
     python_ok = True  
     deps_ok = check_requirements()
     mt5_ok = check_metatrader5()
     mongo_ok = check_mongodb()
+    kaleido_ok = check_kaleido()
     
     logger.info(f"Python 3.9+: {'✅' if python_ok else '❌'}")
     logger.info(f"Dependencias: {'✅' if deps_ok else '❌'}")
     logger.info(f"MetaTrader 5: {'✅' if mt5_ok else '⚠️'}")
     logger.info(f"MongoDB: {'✅' if mongo_ok else '❌'}")
+    logger.info(f"Kaleido + Chrome: {'✅' if kaleido_ok else '❌'}")
     
     logger.info("=" * 50)
     
@@ -201,7 +220,6 @@ def main():
     logger.info("🤖 Trading AI - Sistema de Trading con Inteligencia Artificial")
     logger.info("=" * 60)
     
-    # Verificaciones iniciales
     check_python_version()
     
     if args.setup:
@@ -220,22 +238,18 @@ def main():
             run_tests()
         return
     
-
     create_directories()
     setup_environment()
     
-
     if not show_status():
         logger.error("❌ No se puede iniciar debido a problemas en el sistema")
         sys.exit(1)
     
-
     if args.dev:
         os.environ["DEBUG"] = "true"
         os.environ["LOG_LEVEL"] = "DEBUG"
         logger.info("🔧 Modo desarrollo activado")
     
-
     logger.info(" Iniciando Trading AI...")
     logger.info(" Backend API estará disponible en: http://localhost:8000")
     logger.info(" Documentación API en: http://localhost:8000/docs")
@@ -249,6 +263,5 @@ def main():
     except Exception as e:
         logger.error(f"❌ Error crítico: {e}")
         sys.exit(1)
-
 if __name__ == "__main__":
     main()

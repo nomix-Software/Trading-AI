@@ -1164,15 +1164,8 @@ async def get_mt5_data(
 
 
 @router.get("/price/{symbol}")
-async def get_current_price(
-    symbol: str,
-    current_user: User = Depends(get_current_user),
-):
-    """
-    Obtiene el precio actual en tiempo real de MT5
-    """
+async def get_current_price(symbol: str, current_user: User = Depends(get_current_user)):
     try:
-        # Conectar a MT5 si no está conectado
         if not _is_connected_safe():
             if not hasattr(mt5_provider, "connect") or not mt5_provider.connect():
                 logger.error("Failed to connect to MT5")
@@ -1181,7 +1174,6 @@ async def get_current_price(
                     content={"error": "Cannot connect to MetaTrader 5"}
                 )
 
-        # Obtener precio actual
         current_price = mt5_provider.get_current_price(symbol)
 
         if current_price is None:
@@ -1190,13 +1182,23 @@ async def get_current_price(
                 content={"error": f"No price data available for {symbol}"}
             )
 
-        # Obtener información adicional del símbolo
+        # 🧠 Si devuelve un dict, extraemos bid/ask/last
+        if isinstance(current_price, dict):
+            price_value = (
+                current_price.get("bid")
+                or current_price.get("ask")
+                or current_price.get("last")
+                or list(current_price.values())[0]
+            )
+        else:
+            price_value = current_price
+
         symbol_info_raw = mt5_provider.get_symbol_info(symbol) if hasattr(mt5_provider, "get_symbol_info") else None
         symbol_info = _symbol_info_to_dict(symbol_info_raw)
 
         response_data = {
             "symbol": symbol,
-            "price": float(current_price),
+            "price": float(price_value),
             "timestamp": datetime.utcnow().isoformat(),
             "source": "MT5_Real",
             "symbol_info": {
