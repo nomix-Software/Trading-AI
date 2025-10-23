@@ -109,6 +109,23 @@ const Charts = () => {
   const loadingRef = useRef(false)
   const initialLoadDoneRef = useRef(false)
   const changeTimeoutRef = useRef(null)
+
+  // Add ref for drawing series
+  const drawingSeriesRef = useRef([])
+
+  const indicatorSeriesRef = useRef({
+    sma20: null,
+    sma50: null,
+    ema20: null,
+    rsi: null,
+    macd: null,
+    macdSignal: null,
+    macdHistogram: null,
+    bollingerUpper: null,
+    bollingerMiddle: null,
+    bollingerLower: null,
+  })
+
   // Estados principales
   const [selectedPair, setSelectedPair] = useState("EURUSD")
   // ✅ MODIFICADO: timeframe solo para visualización del gráfico
@@ -161,6 +178,13 @@ const Charts = () => {
   const [fullscreen, setFullscreen] = useState(false)
   const [snackbar, setSnackbar] = useState({ open: false, message: "", severity: "info" })
   const [watchlist, setWatchlist] = useState(["EURUSD", "GBPUSD", "USDJPY", "AUDUSD"])
+
+  // Add drawing tools state
+  const [drawingMode, setDrawingMode] = useState(null) // 'line', 'horizontal', 'vertical', 'rectangle', 'fibonacci'
+  const [drawings, setDrawings] = useState([])
+  const [currentDrawing, setCurrentDrawing] = useState(null)
+  const [isDrawing, setIsDrawing] = useState(false)
+  const drawingStartPoint = useRef(null)
 
   // Configuración de indicadores
   const [indicators, setIndicators] = useState({
@@ -290,6 +314,523 @@ const Charts = () => {
     return "excellent"
   }, [])
 
+  const calculateSMA = useCallback((data, period) => {
+    const result = []
+    for (let i = 0; i < data.length; i++) {
+      if (i < period - 1) {
+        continue
+      }
+      let sum = 0
+      for (let j = 0; j < period; j++) {
+        sum += data[i - j].close
+      }
+      result.push({
+        time: data[i].time,
+        value: sum / period,
+      })
+    }
+    return result
+  }, [])
+
+  const calculateEMA = useCallback((data, period) => {
+    const result = []
+    const multiplier = 2 / (period + 1)
+
+    // Calculate initial SMA for first EMA value
+    let sum = 0
+    for (let i = 0; i < period; i++) {
+      sum += data[i].close
+    }
+    let ema = sum / period
+    result.push({ time: data[period - 1].time, value: ema })
+
+    // Calculate EMA for remaining values
+    for (let i = period; i < data.length; i++) {
+      ema = (data[i].close - ema) * multiplier + ema
+      result.push({ time: data[i].time, value: ema })
+    }
+
+    return result
+  }, [])
+
+  const calculateRSI = useCallback((data, period = 14) => {
+    const result = []
+    const changes = []
+
+    for (let i = 1; i < data.length; i++) {
+      changes.push(data[i].close - data[i - 1].close)
+    }
+
+    for (let i = period; i < changes.length; i++) {
+      let gains = 0
+      let losses = 0
+
+      for (let j = i - period; j < i; j++) {
+        if (changes[j] > 0) gains += changes[j]
+        else losses -= changes[j]
+      }
+
+      const avgGain = gains / period
+      const avgLoss = losses / period
+      const rs = avgLoss === 0 ? 100 : avgGain / avgLoss
+      const rsi = 100 - 100 / (1 + rs)
+
+      result.push({
+        time: data[i + 1].time,
+        value: rsi,
+      })
+    }
+
+    return result
+  }, [])
+
+  const calculateMACD = useCallback(
+    (data) => {
+      const ema12 = calculateEMA(data, 12)
+      const ema26 = calculateEMA(data, 26)
+
+      const macdLine = []
+      const minLength = Math.min(ema12.length, ema26.length)
+
+      for (let i = 0; i < minLength; i++) {
+        macdLine.push({
+          time: ema12[i].time,
+          value: ema12[i].value - ema26[i].value,
+        })
+      }
+
+      // Calculate signal line (9-period EMA of MACD)
+      const signalLine = calculateEMA(
+        macdLine.map((item) => ({ close: item.value, time: item.time })),
+        9,
+      )
+
+      // Calculate histogram
+      const histogram = []
+      for (let i = 0; i < signalLine.length; i++) {
+        const macdValue = macdLine.find((m) => m.time === signalLine[i].time)
+        if (macdValue) {
+          histogram.push({
+            time: signalLine[i].time,
+            value: macdValue.value - signalLine[i].value,
+          })
+        }
+      }
+
+      return { macdLine, signalLine, histogram }
+    },
+    [calculateEMA],
+  )
+
+  const calculateBollingerBands = useCallback((data, period = 20, stdDev = 2) => {
+    const upper = []
+    const middle = []
+    const lower = []
+
+    for (let i = period - 1; i < data.length; i++) {
+      const slice = data.slice(i - period + 1, i + 1)
+      const mean = slice.reduce((sum, candle) => sum + candle.close, 0) / period
+      const variance = slice.reduce((sum, candle) => sum + Math.pow(candle.close - mean, 2), 0) / period
+      const std = Math.sqrt(variance)
+
+      middle.push({ time: data[i].time, value: mean })
+      upper.push({ time: data[i].time, value: mean + stdDev * std })
+      lower.push({ time: data[i].time, value: mean - stdDev * std })
+    }
+
+    return { upper, middle, lower }
+  }, [])
+
+  const handleChartClick = useCallback(
+    (param) => {
+      if (!drawingMode || !param.point || !param.time) return
+
+      const price = param.point.y
+      const time = param.time
+
+      if (!isDrawing) {
+        // Start drawing
+        console.log("[v0] 🎨 Iniciando dibujo:", drawingMode)
+        setIsDrawing(true)
+        drawingStartPoint.current = { time, price }
+        setCurrentDrawing({
+          type: drawingMode,
+          startTime: time,
+          startPrice: price,
+          endTime: time,
+          endPrice: price,
+        })
+      } else {
+        // Finish drawing
+        console.log("[v0] ✅ Finalizando dibujo:", drawingMode)
+        setIsDrawing(false)
+        const newDrawing = {
+          id: Date.now(),
+          type: drawingMode,
+          startTime: drawingStartPoint.current.time,
+          startPrice: drawingStartPoint.current.price,
+          endTime: time,
+          endPrice: price,
+        }
+        setDrawings((prev) => [...prev, newDrawing])
+        setCurrentDrawing(null)
+        drawingStartPoint.current = null
+        setDrawingMode(null) // Auto-deselect tool after drawing
+      }
+    },
+    [drawingMode, isDrawing],
+  )
+
+  const handleChartMouseMove = useCallback(
+    (param) => {
+      if (!isDrawing || !currentDrawing || !param.point || !param.time) return
+
+      const price = param.point.y
+      const time = param.time
+
+      setCurrentDrawing((prev) => ({
+        ...prev,
+        endTime: time,
+        endPrice: price,
+      }))
+    },
+    [isDrawing, currentDrawing],
+  )
+
+  const renderDrawings = useCallback(() => {
+    if (!chartInstanceRef.current || !candlestickSeriesRef.current) return
+
+    if (drawingSeriesRef.current && drawingSeriesRef.current.length > 0) {
+      drawingSeriesRef.current.forEach((series) => {
+        try {
+          if (series && typeof series === "object" && chartInstanceRef.current) {
+            chartInstanceRef.current.removeSeries(series)
+          }
+        } catch (e) {
+          // Silently handle removal errors for drawings
+          if (!e.message?.includes("undefined")) {
+            console.warn("[v0] ⚠️ Error removing drawing series:", e.message)
+          }
+        }
+      })
+      drawingSeriesRef.current = []
+    }
+
+    const allDrawings = currentDrawing ? [...drawings, currentDrawing] : drawings
+
+    allDrawings.forEach((drawing) => {
+      try {
+        if (drawing.type === "line" || drawing.type === "trendline") {
+          // Render trend line
+          const lineSeries = chartInstanceRef.current.addLineSeries({
+            color: "#FFD700",
+            lineWidth: 2,
+            lineStyle: 2, // Dashed
+            crosshairMarkerVisible: false,
+          })
+          lineSeries.setData([
+            { time: drawing.startTime, value: drawing.startPrice },
+            { time: drawing.endTime, value: drawing.endPrice },
+          ])
+          drawingSeriesRef.current.push(lineSeries)
+        } else if (drawing.type === "horizontal") {
+          // Render horizontal line
+          const horizontalSeries = chartInstanceRef.current.addLineSeries({
+            color: "#00BFFF",
+            lineWidth: 2,
+            lineStyle: 2,
+            crosshairMarkerVisible: false,
+          })
+          const chartData = candlestickSeriesRef.current.data()
+          if (chartData && chartData.length > 0) {
+            horizontalSeries.setData([
+              { time: chartData[0].time, value: drawing.startPrice },
+              { time: chartData[chartData.length - 1].time, value: drawing.startPrice },
+            ])
+          }
+          drawingSeriesRef.current.push(horizontalSeries)
+        } else if (drawing.type === "vertical") {
+          // Vertical lines are handled via price line markers
+          const priceLine = candlestickSeriesRef.current.createPriceLine({
+            price: drawing.startPrice,
+            color: "#FF69B4",
+            lineWidth: 2,
+            lineStyle: 2,
+            axisLabelVisible: true,
+          })
+          drawingSeriesRef.current.push(priceLine)
+        } else if (drawing.type === "rectangle") {
+          // Render rectangle as area between two horizontal lines
+          const topSeries = chartInstanceRef.current.addLineSeries({
+            color: "#9370DB",
+            lineWidth: 2,
+            lineStyle: 2,
+            crosshairMarkerVisible: false,
+          })
+          const bottomSeries = chartInstanceRef.current.addLineSeries({
+            color: "#9370DB",
+            lineWidth: 2,
+            lineStyle: 2,
+            crosshairMarkerVisible: false,
+          })
+
+          const maxPrice = Math.max(drawing.startPrice, drawing.endPrice)
+          const minPrice = Math.min(drawing.startPrice, drawing.endPrice)
+
+          topSeries.setData([
+            { time: drawing.startTime, value: maxPrice },
+            { time: drawing.endTime, value: maxPrice },
+          ])
+          bottomSeries.setData([
+            { time: drawing.startTime, value: minPrice },
+            { time: drawing.endTime, value: minPrice },
+          ])
+
+          drawingSeriesRef.current.push(topSeries, bottomSeries)
+        } else if (drawing.type === "fibonacci") {
+          // Render Fibonacci retracement levels
+          const priceDiff = drawing.endPrice - drawing.startPrice
+          const fibLevels = [0, 0.236, 0.382, 0.5, 0.618, 0.786, 1]
+          const fibColors = ["#FF0000", "#FF6B00", "#FFD700", "#00FF00", "#00BFFF", "#9370DB", "#FF1493"]
+
+          fibLevels.forEach((level, index) => {
+            const price = drawing.startPrice + priceDiff * level
+            const fibSeries = chartInstanceRef.current.addLineSeries({
+              color: fibColors[index],
+              lineWidth: 1,
+              lineStyle: 2,
+              crosshairMarkerVisible: false,
+            })
+            fibSeries.setData([
+              { time: drawing.startTime, value: price },
+              { time: drawing.endTime, value: price },
+            ])
+            drawingSeriesRef.current.push(fibSeries)
+          })
+        }
+      } catch (error) {
+        console.error("[v0] ❌ Error rendering drawing:", error)
+      }
+    })
+  }, [drawings, currentDrawing])
+
+  const deleteLastDrawing = useCallback(() => {
+    setDrawings((prev) => prev.slice(0, -1))
+  }, [])
+
+  const clearAllDrawings = useCallback(() => {
+    setDrawings([])
+    setCurrentDrawing(null)
+    setIsDrawing(false)
+    setDrawingMode(null)
+    drawingStartPoint.current = null
+  }, [])
+
+  const renderIndicators = useCallback(() => {
+    if (!chartInstanceRef.current || !chartRawData || chartRawData.length === 0) {
+      console.log("[v0] ⏳ No se puede renderizar indicadores: gráfico o datos no disponibles")
+      return
+    }
+
+    if (isDrawing) {
+      console.log("[v0] ⏸️ Saltando renderizado de indicadores durante el dibujo")
+      return
+    }
+
+    console.log("[v0] 📊 Renderizando indicadores activos...")
+
+    // Format data for calculations
+    const formattedData = chartRawData.map((candle) => ({
+      time: Math.floor(new Date(candle.time).getTime() / 1000),
+      open: Number.parseFloat(candle.open),
+      high: Number.parseFloat(candle.high),
+      low: Number.parseFloat(candle.low),
+      close: Number.parseFloat(candle.close),
+    }))
+
+    Object.keys(indicatorSeriesRef.current).forEach((key) => {
+      const series = indicatorSeriesRef.current[key]
+      // Check if series exists and is a valid object with methods
+      if (series && typeof series === "object" && chartInstanceRef.current) {
+        try {
+          // Verify the series is still attached to the chart
+          chartInstanceRef.current.removeSeries(series)
+          console.log(`[v0] ✅ Removido ${key}`)
+        } catch (e) {
+          // Only log if it's not a "Value is undefined" error
+          if (!e.message?.includes("undefined")) {
+            console.warn(`[v0] ⚠️ Error removing ${key}:`, e.message)
+          }
+        }
+      }
+      indicatorSeriesRef.current[key] = null
+    })
+
+    // SMA 20
+    if (indicators.sma20) {
+      try {
+        const sma20Data = calculateSMA(formattedData, 20)
+        const sma20Series = chartInstanceRef.current.addLineSeries({
+          color: "#2962FF",
+          lineWidth: 2,
+          title: "SMA 20",
+        })
+        sma20Series.setData(sma20Data)
+        indicatorSeriesRef.current.sma20 = sma20Series
+        console.log("[v0] ✅ SMA 20 renderizado")
+      } catch (e) {
+        console.error("[v0] ❌ Error renderizando SMA 20:", e)
+      }
+    }
+
+    // SMA 50
+    if (indicators.sma50) {
+      try {
+        const sma50Data = calculateSMA(formattedData, 50)
+        const sma50Series = chartInstanceRef.current.addLineSeries({
+          color: "#FF6D00",
+          lineWidth: 2,
+          title: "SMA 50",
+        })
+        sma50Series.setData(sma50Data)
+        indicatorSeriesRef.current.sma50 = sma50Series
+        console.log("[v0] ✅ SMA 50 renderizado")
+      } catch (e) {
+        console.error("[v0] ❌ Error renderizando SMA 50:", e)
+      }
+    }
+
+    // EMA 20
+    if (indicators.ema20) {
+      try {
+        const ema20Data = calculateEMA(formattedData, 20)
+        const ema20Series = chartInstanceRef.current.addLineSeries({
+          color: "#00E676",
+          lineWidth: 2,
+          title: "EMA 20",
+        })
+        ema20Series.setData(ema20Data)
+        indicatorSeriesRef.current.ema20 = ema20Series
+        console.log("[v0] ✅ EMA 20 renderizado")
+      } catch (e) {
+        console.error("[v0] ❌ Error renderizando EMA 20:", e)
+      }
+    }
+
+    // RSI (scaled to price range for visibility)
+    if (indicators.rsi) {
+      try {
+        const rsiData = calculateRSI(formattedData, 14)
+        // Scale RSI (0-100) to fit in the price chart
+        const priceRange = Math.max(...formattedData.map((d) => d.high)) - Math.min(...formattedData.map((d) => d.low))
+        const minPrice = Math.min(...formattedData.map((d) => d.low))
+        const scaledRSI = rsiData.map((item) => ({
+          time: item.time,
+          value: minPrice + (item.value / 100) * priceRange * 0.3, // Scale to 30% of price range
+        }))
+        const rsiSeries = chartInstanceRef.current.addLineSeries({
+          color: "#AB47BC",
+          lineWidth: 2,
+          title: "RSI (scaled)",
+        })
+        rsiSeries.setData(scaledRSI)
+        indicatorSeriesRef.current.rsi = rsiSeries
+        console.log("[v0] ✅ RSI renderizado (escalado)")
+      } catch (e) {
+        console.error("[v0] ❌ Error renderizando RSI:", e)
+      }
+    }
+
+    // MACD (scaled to price range)
+    if (indicators.macd) {
+      try {
+        const macdData = calculateMACD(formattedData)
+        const priceRange = Math.max(...formattedData.map((d) => d.high)) - Math.min(...formattedData.map((d) => d.low))
+        const minPrice = Math.min(...formattedData.map((d) => d.low))
+
+        // Scale MACD to fit in chart
+        const macdRange = Math.max(...macdData.macdLine.map((d) => Math.abs(d.value)))
+        const scaleFactor = (priceRange * 0.2) / macdRange
+
+        const scaledMACD = macdData.macdLine.map((item) => ({
+          time: item.time,
+          value: minPrice + item.value * scaleFactor + priceRange * 0.1,
+        }))
+
+        const scaledSignal = macdData.signalLine.map((item) => ({
+          time: item.time,
+          value: minPrice + item.value * scaleFactor + priceRange * 0.1,
+        }))
+
+        const macdSeries = chartInstanceRef.current.addLineSeries({
+          color: "#00BCD4",
+          lineWidth: 2,
+          title: "MACD (scaled)",
+        })
+        macdSeries.setData(scaledMACD)
+        indicatorSeriesRef.current.macd = macdSeries
+
+        const signalSeries = chartInstanceRef.current.addLineSeries({
+          color: "#FF5252",
+          lineWidth: 2,
+          title: "Signal (scaled)",
+        })
+        signalSeries.setData(scaledSignal)
+        indicatorSeriesRef.current.macdSignal = signalSeries
+
+        console.log("[v0] ✅ MACD renderizado (escalado)")
+      } catch (e) {
+        console.error("[v0] ❌ Error renderizando MACD:", e)
+      }
+    }
+
+    // Bollinger Bands
+    if (indicators.bollinger) {
+      try {
+        const bollingerData = calculateBollingerBands(formattedData, 20, 2)
+
+        const upperSeries = chartInstanceRef.current.addLineSeries({
+          color: "#9C27B0",
+          lineWidth: 1,
+          title: "BB Upper",
+        })
+        upperSeries.setData(bollingerData.upper)
+        indicatorSeriesRef.current.bollingerUpper = upperSeries
+
+        const middleSeries = chartInstanceRef.current.addLineSeries({
+          color: "#9C27B0",
+          lineWidth: 2,
+          title: "BB Middle",
+        })
+        middleSeries.setData(bollingerData.middle)
+        indicatorSeriesRef.current.bollingerMiddle = middleSeries
+
+        const lowerSeries = chartInstanceRef.current.addLineSeries({
+          color: "#9C27B0",
+          lineWidth: 1,
+          title: "BB Lower",
+        })
+        lowerSeries.setData(bollingerData.lower)
+        indicatorSeriesRef.current.bollingerLower = lowerSeries
+
+        console.log("[v0] ✅ Bollinger Bands renderizadas")
+      } catch (e) {
+        console.error("[v0] ❌ Error renderizando Bollinger Bands:", e)
+      }
+    }
+
+    console.log("[v0] 🎉 Renderizado de indicadores completado")
+  }, [
+    chartRawData,
+    indicators,
+    isDrawing,
+    calculateSMA,
+    calculateEMA,
+    calculateRSI,
+    calculateMACD,
+    calculateBollingerBands,
+  ])
+
   const destroyChart = useCallback(() => {
     if (chartInstanceRef.current) {
       try {
@@ -302,6 +843,9 @@ const Charts = () => {
 
         chartInstanceRef.current = null
         candlestickSeriesRef.current = null
+        Object.keys(indicatorSeriesRef.current).forEach((key) => {
+          indicatorSeriesRef.current[key] = null
+        })
       } catch (error) {
         console.warn("⚠️ Error durante destrucción del gráfico:", error)
         chartInstanceRef.current = null
@@ -752,17 +1296,17 @@ const Charts = () => {
     }
   }, [showSnackbarRef])
 
-// ✅ NUEVO: Función para calcular velas óptimas según temporalidad
+  // ✅ NUEVO: Función para calcular velas óptimas según temporalidad
   const getOptimalCandleCount = useCallback((tf) => {
     const candleConfig = {
-      'M1': 500,    // 1 minuto: ~8 horas
-      'M5': 500,    // 5 minutos: ~41 horas
-      'M15': 400,   // 15 minutos: ~4 días
-      'M30': 350,   // 30 minutos: ~7 días
-      'H1': 300,    // 1 hora: ~12 días
-      'H4': 250,    // 4 horas: ~41 días
-      'D1': 200,    // 1 día: ~6.5 meses
-      'W1': 150,    // 1 semana: ~3 años
+      M1: 500, // 1 minuto: ~8 horas
+      M5: 500, // 5 minutos: ~41 horas
+      M15: 400, // 15 minutos: ~4 días
+      M30: 350, // 30 minutos: ~7 días
+      H1: 300, // 1 hora: ~12 días
+      H4: 250, // 4 horas: ~41 días
+      D1: 200, // 1 día: ~6.5 meses
+      W1: 150, // 1 semana: ~3 años
     }
     return candleConfig[tf] || 300
   }, [])
@@ -780,7 +1324,7 @@ const Charts = () => {
 
     loadingRef.current = true
     setLoading(true)
-    
+
     // ✅ Calcular cantidad óptima de velas según temporalidad
     const optimalCandles = getOptimalCandleCount(timeframe)
     console.log(`[v0] 🚀 INICIANDO loadRealChartData para ${selectedPair} ${timeframe} (${optimalCandles} velas)`)
@@ -802,10 +1346,7 @@ const Charts = () => {
         console.log("[v0] ✅ Datos válidos recibidos:", rawData.length, "velas")
 
         setChartRawData(rawData)
-        showSnackbarRef.current(
-          `Datos cargados: ${rawData.length} velas (${timeframe})`, 
-          "success"
-        )
+        showSnackbarRef.current(`Datos cargados: ${rawData.length} velas (${timeframe})`, "success")
       } else {
         console.log("[v0] ⚠️ No se recibieron datos válidos")
         showSnackbarRef.current("No se encontraron datos para este par", "warning")
@@ -1067,7 +1608,7 @@ const Charts = () => {
         }, 200)
       })
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loadRealChartData])
 
   // Configurar WebSocket con reconexión automática
@@ -1170,6 +1711,9 @@ const Charts = () => {
         console.log("[v0] ✅ Instancia del gráfico creada")
         chartInstanceRef.current = chart
 
+        chart.subscribeClick(handleChartClick)
+        chart.subscribeCrosshairMove(handleChartMouseMove)
+
         // Create candlestick series
         console.log("[v0] 📊 Agregando serie de velas al gráfico")
         const candlestickSeries = chart.addCandlestickSeries({
@@ -1203,6 +1747,12 @@ const Charts = () => {
 
         setIsChartReady(true)
         console.log("[v0] ✅ Gráfico completamente renderizado y listo")
+
+        setTimeout(() => {
+          if (mountedRef.current) {
+            renderIndicators()
+          }
+        }, 100)
       } catch (error) {
         console.error("[v0] ❌ Error creando gráfico:", error)
         showSnackbarRef.current("Error al crear el gráfico", "error")
@@ -1210,7 +1760,20 @@ const Charts = () => {
     }
 
     createChartInstance()
-  }, [chartRawData, chartKey, showSnackbarRef])
+  }, [chartRawData, chartKey, showSnackbarRef, renderIndicators, handleChartClick, handleChartMouseMove])
+
+  useEffect(() => {
+    if (isChartReady && chartInstanceRef.current) {
+      renderDrawings()
+    }
+  }, [isChartReady, drawings, currentDrawing, renderDrawings])
+
+  useEffect(() => {
+    if (isChartReady && chartInstanceRef.current && chartRawData) {
+      console.log("[v0] 🔄 Indicadores cambiaron, re-renderizando...")
+      renderIndicators()
+    }
+  }, [indicators, isChartReady, chartRawData, renderIndicators])
 
   // Simplified the useEffect for handling pair/timeframe changes.
   useEffect(() => {
@@ -1847,6 +2410,140 @@ const Charts = () => {
                       Gráfico de {selectedPair} - TradingView
                     </Typography>
                   </Box>
+
+                  <Box
+                    sx={{
+                      mb: 2,
+                      p: 1.5,
+                      backgroundColor: "rgba(0,255,255,0.05)",
+                      borderRadius: 1,
+                      display: "flex",
+                      gap: 1,
+                      flexWrap: "wrap",
+                      alignItems: "center",
+                      border: "1px solid rgba(0,255,255,0.2)",
+                    }}
+                  >
+                    <Typography variant="caption" sx={{ color: "#00ffff", fontWeight: "bold", mr: 1 }}>
+                      🎨 Herramientas de Dibujo:
+                    </Typography>
+                    <Button
+                      size="small"
+                      variant={drawingMode === "line" ? "contained" : "outlined"}
+                      onClick={() => setDrawingMode(drawingMode === "line" ? null : "line")}
+                      sx={{
+                        minWidth: "90px",
+                        borderColor: "#FFD700",
+                        color: drawingMode === "line" ? "#000" : "#FFD700",
+                        backgroundColor: drawingMode === "line" ? "#FFD700" : "transparent",
+                        "&:hover": {
+                          backgroundColor: drawingMode === "line" ? "#FFC700" : "rgba(255,215,0,0.1)",
+                        },
+                      }}
+                    >
+                      📈 Línea
+                    </Button>
+                    <Button
+                      size="small"
+                      variant={drawingMode === "horizontal" ? "contained" : "outlined"}
+                      onClick={() => setDrawingMode(drawingMode === "horizontal" ? null : "horizontal")}
+                      sx={{
+                        minWidth: "100px",
+                        borderColor: "#00BFFF",
+                        color: drawingMode === "horizontal" ? "#000" : "#00BFFF",
+                        backgroundColor: drawingMode === "horizontal" ? "#00BFFF" : "transparent",
+                        "&:hover": {
+                          backgroundColor: drawingMode === "horizontal" ? "#00A0DD" : "rgba(0,191,255,0.1)",
+                        },
+                      }}
+                    >
+                      ↔️ Horizontal
+                    </Button>
+                    <Button
+                      size="small"
+                      variant={drawingMode === "rectangle" ? "contained" : "outlined"}
+                      onClick={() => setDrawingMode(drawingMode === "rectangle" ? null : "rectangle")}
+                      sx={{
+                        minWidth: "110px",
+                        borderColor: "#9370DB",
+                        color: drawingMode === "rectangle" ? "#000" : "#9370DB",
+                        backgroundColor: drawingMode === "rectangle" ? "#9370DB" : "transparent",
+                        "&:hover": {
+                          backgroundColor: drawingMode === "rectangle" ? "#8060CB" : "rgba(147,112,219,0.1)",
+                        },
+                      }}
+                    >
+                      ▭ Rectángulo
+                    </Button>
+                    <Button
+                      size="small"
+                      variant={drawingMode === "fibonacci" ? "contained" : "outlined"}
+                      onClick={() => setDrawingMode(drawingMode === "fibonacci" ? null : "fibonacci")}
+                      sx={{
+                        minWidth: "100px",
+                        borderColor: "#FF69B4",
+                        color: drawingMode === "fibonacci" ? "#000" : "#FF69B4",
+                        backgroundColor: drawingMode === "fibonacci" ? "#FF69B4" : "transparent",
+                        "&:hover": {
+                          backgroundColor: drawingMode === "fibonacci" ? "#FF5099" : "rgba(255,105,180,0.1)",
+                        },
+                      }}
+                    >
+                      🔢 Fibonacci
+                    </Button>
+                    <Box sx={{ flexGrow: 1 }} />
+                    <Button
+                      size="small"
+                      variant="outlined"
+                      onClick={deleteLastDrawing}
+                      disabled={drawings.length === 0}
+                      sx={{
+                        minWidth: "80px",
+                        borderColor: "#FF6B6B",
+                        color: "#FF6B6B",
+                        "&:hover": {
+                          backgroundColor: "rgba(255,107,107,0.1)",
+                        },
+                      }}
+                    >
+                      ↶ Deshacer
+                    </Button>
+                    <Button
+                      size="small"
+                      variant="outlined"
+                      onClick={clearAllDrawings}
+                      disabled={drawings.length === 0}
+                      sx={{
+                        minWidth: "80px",
+                        borderColor: "#FF4444",
+                        color: "#FF4444",
+                        "&:hover": {
+                          backgroundColor: "rgba(255,68,68,0.1)",
+                        },
+                      }}
+                    >
+                      🗑️ Limpiar
+                    </Button>
+                  </Box>
+
+                  {drawingMode && (
+                    <Alert
+                      severity="info"
+                      sx={{
+                        mb: 2,
+                        backgroundColor: "rgba(0,191,255,0.1)",
+                        color: "#00BFFF",
+                        border: "1px solid rgba(0,191,255,0.3)",
+                        "& .MuiAlert-icon": {
+                          color: "#00BFFF",
+                        },
+                      }}
+                    >
+                      {isDrawing
+                        ? "🎯 Haz clic en el gráfico para finalizar el dibujo"
+                        : `✏️ Modo de dibujo activo: ${drawingMode.toUpperCase()}. Haz clic en el gráfico para comenzar.`}
+                    </Alert>
+                  )}
 
                   <Box sx={{ mb: 2, p: 1, backgroundColor: "rgba(0,255,255,0.05)", borderRadius: 1 }}>
                     <Typography variant="caption" sx={{ color: "rgba(255,255,255,0.7)" }}>
