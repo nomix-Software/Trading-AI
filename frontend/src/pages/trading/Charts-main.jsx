@@ -26,7 +26,6 @@ import {
   Fab,
 } from "@mui/material"
 import { ShowChart, Refresh, Settings, SmartToy, Psychology, Star, Warning, Assessment } from "@mui/icons-material"
-import { createChart, ColorType, CrosshairMode } from "lightweight-charts"
 import api from "../../api/index"
 import "./charts.css"
 import SettingsDialog from "../settings/settings-dialog"
@@ -109,6 +108,9 @@ const Charts = () => {
   const loadingRef = useRef(false)
   const initialLoadDoneRef = useRef(false)
   const changeTimeoutRef = useRef(null)
+  const isDestroyingRef = useRef(false)
+  const isCreatingRef = useRef(false)
+  const indicatorChangeTimeoutRef = useRef(null)
 
   // Add ref for drawing series
   const drawingSeriesRef = useRef([])
@@ -498,120 +500,8 @@ const Charts = () => {
   )
 
   const renderDrawings = useCallback(() => {
-    if (!chartInstanceRef.current || !candlestickSeriesRef.current) return
-
-    if (drawingSeriesRef.current && drawingSeriesRef.current.length > 0) {
-      drawingSeriesRef.current.forEach((series) => {
-        try {
-          if (series && typeof series === "object" && chartInstanceRef.current) {
-            chartInstanceRef.current.removeSeries(series)
-          }
-        } catch (e) {
-          // Silently handle removal errors for drawings
-          if (!e.message?.includes("undefined")) {
-            console.warn("[v0] ⚠️ Error removing drawing series:", e.message)
-          }
-        }
-      })
-      drawingSeriesRef.current = []
-    }
-
-    const allDrawings = currentDrawing ? [...drawings, currentDrawing] : drawings
-
-    allDrawings.forEach((drawing) => {
-      try {
-        if (drawing.type === "line" || drawing.type === "trendline") {
-          // Render trend line
-          const lineSeries = chartInstanceRef.current.addLineSeries({
-            color: "#FFD700",
-            lineWidth: 2,
-            lineStyle: 2, // Dashed
-            crosshairMarkerVisible: false,
-          })
-          lineSeries.setData([
-            { time: drawing.startTime, value: drawing.startPrice },
-            { time: drawing.endTime, value: drawing.endPrice },
-          ])
-          drawingSeriesRef.current.push(lineSeries)
-        } else if (drawing.type === "horizontal") {
-          // Render horizontal line
-          const horizontalSeries = chartInstanceRef.current.addLineSeries({
-            color: "#00BFFF",
-            lineWidth: 2,
-            lineStyle: 2,
-            crosshairMarkerVisible: false,
-          })
-          const chartData = candlestickSeriesRef.current.data()
-          if (chartData && chartData.length > 0) {
-            horizontalSeries.setData([
-              { time: chartData[0].time, value: drawing.startPrice },
-              { time: chartData[chartData.length - 1].time, value: drawing.startPrice },
-            ])
-          }
-          drawingSeriesRef.current.push(horizontalSeries)
-        } else if (drawing.type === "vertical") {
-          // Vertical lines are handled via price line markers
-          const priceLine = candlestickSeriesRef.current.createPriceLine({
-            price: drawing.startPrice,
-            color: "#FF69B4",
-            lineWidth: 2,
-            lineStyle: 2,
-            axisLabelVisible: true,
-          })
-          drawingSeriesRef.current.push(priceLine)
-        } else if (drawing.type === "rectangle") {
-          // Render rectangle as area between two horizontal lines
-          const topSeries = chartInstanceRef.current.addLineSeries({
-            color: "#9370DB",
-            lineWidth: 2,
-            lineStyle: 2,
-            crosshairMarkerVisible: false,
-          })
-          const bottomSeries = chartInstanceRef.current.addLineSeries({
-            color: "#9370DB",
-            lineWidth: 2,
-            lineStyle: 2,
-            crosshairMarkerVisible: false,
-          })
-
-          const maxPrice = Math.max(drawing.startPrice, drawing.endPrice)
-          const minPrice = Math.min(drawing.startPrice, drawing.endPrice)
-
-          topSeries.setData([
-            { time: drawing.startTime, value: maxPrice },
-            { time: drawing.endTime, value: maxPrice },
-          ])
-          bottomSeries.setData([
-            { time: drawing.startTime, value: minPrice },
-            { time: drawing.endTime, value: minPrice },
-          ])
-
-          drawingSeriesRef.current.push(topSeries, bottomSeries)
-        } else if (drawing.type === "fibonacci") {
-          // Render Fibonacci retracement levels
-          const priceDiff = drawing.endPrice - drawing.startPrice
-          const fibLevels = [0, 0.236, 0.382, 0.5, 0.618, 0.786, 1]
-          const fibColors = ["#FF0000", "#FF6B00", "#FFD700", "#00FF00", "#00BFFF", "#9370DB", "#FF1493"]
-
-          fibLevels.forEach((level, index) => {
-            const price = drawing.startPrice + priceDiff * level
-            const fibSeries = chartInstanceRef.current.addLineSeries({
-              color: fibColors[index],
-              lineWidth: 1,
-              lineStyle: 2,
-              crosshairMarkerVisible: false,
-            })
-            fibSeries.setData([
-              { time: drawing.startTime, value: price },
-              { time: drawing.endTime, value: price },
-            ])
-            drawingSeriesRef.current.push(fibSeries)
-          })
-        }
-      } catch (error) {
-        console.error("[v0] ❌ Error rendering drawing:", error)
-      }
-    })
+    // TradingView has built-in drawing tools, no need for manual rendering
+    console.log("[v0] 🎨 TradingView maneja los dibujos internamente")
   }, [drawings, currentDrawing])
 
   const deleteLastDrawing = useCallback(() => {
@@ -632,211 +522,18 @@ const Charts = () => {
       return
     }
 
-    if (isDrawing) {
-      console.log("[v0] ⏸️ Saltando renderizado de indicadores durante el dibujo")
-      return
-    }
+    console.log("[v0] 📊 TradingView maneja los indicadores internamente")
 
-    console.log("[v0] 📊 Renderizando indicadores activos...")
-
-    // Format data for calculations
-    const formattedData = chartRawData.map((candle) => ({
-      time: Math.floor(new Date(candle.time).getTime() / 1000),
-      open: Number.parseFloat(candle.open),
-      high: Number.parseFloat(candle.high),
-      low: Number.parseFloat(candle.low),
-      close: Number.parseFloat(candle.close),
-    }))
-
-    Object.keys(indicatorSeriesRef.current).forEach((key) => {
-      const series = indicatorSeriesRef.current[key]
-      // Check if series exists and is a valid object with methods
-      if (series && typeof series === "object" && chartInstanceRef.current) {
-        try {
-          // Verify the series is still attached to the chart
-          chartInstanceRef.current.removeSeries(series)
-          console.log(`[v0] ✅ Removido ${key}`)
-        } catch (e) {
-          // Only log if it's not a "Value is undefined" error
-          if (!e.message?.includes("undefined")) {
-            console.warn(`[v0] ⚠️ Error removing ${key}:`, e.message)
-          }
-        }
-      }
-      indicatorSeriesRef.current[key] = null
-    })
-
-    // SMA 20
-    if (indicators.sma20) {
-      try {
-        const sma20Data = calculateSMA(formattedData, 20)
-        const sma20Series = chartInstanceRef.current.addLineSeries({
-          color: "#2962FF",
-          lineWidth: 2,
-          title: "SMA 20",
-        })
-        sma20Series.setData(sma20Data)
-        indicatorSeriesRef.current.sma20 = sma20Series
-        console.log("[v0] ✅ SMA 20 renderizado")
-      } catch (e) {
-        console.error("[v0] ❌ Error renderizando SMA 20:", e)
-      }
-    }
-
-    // SMA 50
-    if (indicators.sma50) {
-      try {
-        const sma50Data = calculateSMA(formattedData, 50)
-        const sma50Series = chartInstanceRef.current.addLineSeries({
-          color: "#FF6D00",
-          lineWidth: 2,
-          title: "SMA 50",
-        })
-        sma50Series.setData(sma50Data)
-        indicatorSeriesRef.current.sma50 = sma50Series
-        console.log("[v0] ✅ SMA 50 renderizado")
-      } catch (e) {
-        console.error("[v0] ❌ Error renderizando SMA 50:", e)
-      }
-    }
-
-    // EMA 20
-    if (indicators.ema20) {
-      try {
-        const ema20Data = calculateEMA(formattedData, 20)
-        const ema20Series = chartInstanceRef.current.addLineSeries({
-          color: "#00E676",
-          lineWidth: 2,
-          title: "EMA 20",
-        })
-        ema20Series.setData(ema20Data)
-        indicatorSeriesRef.current.ema20 = ema20Series
-        console.log("[v0] ✅ EMA 20 renderizado")
-      } catch (e) {
-        console.error("[v0] ❌ Error renderizando EMA 20:", e)
-      }
-    }
-
-    // RSI (scaled to price range for visibility)
-    if (indicators.rsi) {
-      try {
-        const rsiData = calculateRSI(formattedData, 14)
-        // Scale RSI (0-100) to fit in the price chart
-        const priceRange = Math.max(...formattedData.map((d) => d.high)) - Math.min(...formattedData.map((d) => d.low))
-        const minPrice = Math.min(...formattedData.map((d) => d.low))
-        const scaledRSI = rsiData.map((item) => ({
-          time: item.time,
-          value: minPrice + (item.value / 100) * priceRange * 0.3, // Scale to 30% of price range
-        }))
-        const rsiSeries = chartInstanceRef.current.addLineSeries({
-          color: "#AB47BC",
-          lineWidth: 2,
-          title: "RSI (scaled)",
-        })
-        rsiSeries.setData(scaledRSI)
-        indicatorSeriesRef.current.rsi = rsiSeries
-        console.log("[v0] ✅ RSI renderizado (escalado)")
-      } catch (e) {
-        console.error("[v0] ❌ Error renderizando RSI:", e)
-      }
-    }
-
-    // MACD (scaled to price range)
-    if (indicators.macd) {
-      try {
-        const macdData = calculateMACD(formattedData)
-        const priceRange = Math.max(...formattedData.map((d) => d.high)) - Math.min(...formattedData.map((d) => d.low))
-        const minPrice = Math.min(...formattedData.map((d) => d.low))
-
-        // Scale MACD to fit in chart
-        const macdRange = Math.max(...macdData.macdLine.map((d) => Math.abs(d.value)))
-        const scaleFactor = (priceRange * 0.2) / macdRange
-
-        const scaledMACD = macdData.macdLine.map((item) => ({
-          time: item.time,
-          value: minPrice + item.value * scaleFactor + priceRange * 0.1,
-        }))
-
-        const scaledSignal = macdData.signalLine.map((item) => ({
-          time: item.time,
-          value: minPrice + item.value * scaleFactor + priceRange * 0.1,
-        }))
-
-        const macdSeries = chartInstanceRef.current.addLineSeries({
-          color: "#00BCD4",
-          lineWidth: 2,
-          title: "MACD (scaled)",
-        })
-        macdSeries.setData(scaledMACD)
-        indicatorSeriesRef.current.macd = macdSeries
-
-        const signalSeries = chartInstanceRef.current.addLineSeries({
-          color: "#FF5252",
-          lineWidth: 2,
-          title: "Signal (scaled)",
-        })
-        signalSeries.setData(scaledSignal)
-        indicatorSeriesRef.current.macdSignal = signalSeries
-
-        console.log("[v0] ✅ MACD renderizado (escalado)")
-      } catch (e) {
-        console.error("[v0] ❌ Error renderizando MACD:", e)
-      }
-    }
-
-    // Bollinger Bands
-    if (indicators.bollinger) {
-      try {
-        const bollingerData = calculateBollingerBands(formattedData, 20, 2)
-
-        const upperSeries = chartInstanceRef.current.addLineSeries({
-          color: "#9C27B0",
-          lineWidth: 1,
-          title: "BB Upper",
-        })
-        upperSeries.setData(bollingerData.upper)
-        indicatorSeriesRef.current.bollingerUpper = upperSeries
-
-        const middleSeries = chartInstanceRef.current.addLineSeries({
-          color: "#9C27B0",
-          lineWidth: 2,
-          title: "BB Middle",
-        })
-        middleSeries.setData(bollingerData.middle)
-        indicatorSeriesRef.current.bollingerMiddle = middleSeries
-
-        const lowerSeries = chartInstanceRef.current.addLineSeries({
-          color: "#9C27B0",
-          lineWidth: 1,
-          title: "BB Lower",
-        })
-        lowerSeries.setData(bollingerData.lower)
-        indicatorSeriesRef.current.bollingerLower = lowerSeries
-
-        console.log("[v0] ✅ Bollinger Bands renderizadas")
-      } catch (e) {
-        console.error("[v0] ❌ Error renderizando Bollinger Bands:", e)
-      }
-    }
-
-    console.log("[v0] 🎉 Renderizado de indicadores completado")
-  }, [
-    chartRawData,
-    indicators,
-    isDrawing,
-    calculateSMA,
-    calculateEMA,
-    calculateRSI,
-    calculateMACD,
-    calculateBollingerBands,
-  ])
+    // TradingView indicators are added through the widget configuration
+    // We'll apply them when the chart is created
+  }, [chartRawData, indicators, isDrawing])
 
   const destroyChart = useCallback(() => {
-    if (chartInstanceRef.current) {
+    if (chartInstanceRef.current && !isDestroyingRef.current) {
+      isDestroyingRef.current = true
       try {
-        console.log("🔄 Destruyendo instancia del gráfico...")
+        console.log("🔄 Destruyendo instancia del gráfico TradingView...")
 
-        // ✅ SOLO REMOVER LA INSTANCIA, NO LIMPIAR EL CONTENEDOR
         if (typeof chartInstanceRef.current.remove === "function") {
           chartInstanceRef.current.remove()
         }
@@ -846,15 +543,18 @@ const Charts = () => {
         Object.keys(indicatorSeriesRef.current).forEach((key) => {
           indicatorSeriesRef.current[key] = null
         })
+
+        setIsChartReady(false)
       } catch (error) {
         console.warn("⚠️ Error durante destrucción del gráfico:", error)
         chartInstanceRef.current = null
         candlestickSeriesRef.current = null
+      } finally {
+        setTimeout(() => {
+          isDestroyingRef.current = false
+        }, 100)
       }
     }
-
-    // ❌ NO LIMPIAR EL CONTENEDOR MANUALMENTE
-    // Deja que React maneje el DOM
   }, [])
 
   const cleanupAllCharts = useCallback(() => {
@@ -890,7 +590,7 @@ const Charts = () => {
 
   const updateChartWithRealPrice = useCallback(
     (priceData) => {
-      if (!priceData || !priceData.price || !mountedRef.current || !candlestickSeriesRef.current) return
+      if (!priceData || !priceData.price || !mountedRef.current) return
 
       setRealTimePrice(priceData.price)
       setLastPriceUpdate(new Date())
@@ -902,21 +602,7 @@ const Charts = () => {
         setDataFreshness("simulated")
       }
 
-      // ✅ SINTÁXIS ACTUALIZADA PARA v5.x
-      const newPoint = {
-        time: Math.floor((priceData.timestamp || new Date()).getTime() / 1000),
-        close: Number.parseFloat(priceData.price.toFixed(selectedPair.includes("JPY") ? 2 : 5)),
-        open: priceData.price,
-        high: priceData.price,
-        low: priceData.price,
-      }
-
-      // ✅ EN v5.x, update() funciona igual
-      candlestickSeriesRef.current.update(newPoint)
-
-      if (chartInstanceRef.current) {
-        chartInstanceRef.current.timeScale().scrollToRealTime()
-      }
+      console.log("[v0] 📊 Precio actualizado:", priceData.price)
     },
     [selectedPair, validateDataFreshness],
   )
@@ -1488,7 +1174,7 @@ const Charts = () => {
             },
             technical_analyses: signal.technical_analyses || [],
           },
-          { timeout: 35000 },
+          { timeout: 40000 },
         )
 
         const imageUrl = response.data?.chart_image_url || response.data?.image_url
@@ -1638,129 +1324,250 @@ const Charts = () => {
   ])
 
   useEffect(() => {
-    if (!chartRawData || !chartContainerRef.current || !mountedRef.current) {
+    const script = document.createElement("script")
+    script.src = "https://s3.tradingview.com/tv.js"
+    script.async = true
+    script.onload = () => {
+      console.log("[v0] ✅ TradingView script loaded")
+    }
+    document.head.appendChild(script)
+
+    return () => {
+      if (document.head.contains(script)) {
+        document.head.removeChild(script)
+      }
+    }
+  }, [])
+
+  useEffect(() => {
+    if (!chartRawData || !mountedRef.current) {
       console.log("[v0] ⏳ Esperando condiciones para crear gráfico:", {
         hasData: !!chartRawData,
-        hasContainer: !!chartContainerRef.current,
         isMounted: mountedRef.current,
       })
       return
     }
 
-    console.log("[v0] 🎨 Condiciones cumplidas, creando gráfico...")
+    const timeoutId = setTimeout(() => {
+      const container = document.getElementById("tradingview-chart-container")
 
-    const createChartInstance = async () => {
-      try {
-        // Destroy previous instance if exists
-        if (chartInstanceRef.current) {
-          console.log("[v0] 🗑️ Destruyendo instancia anterior del gráfico")
-          try {
-            chartInstanceRef.current.remove()
-          } catch (err) {
-            console.warn("[v0] Error al remover gráfico:", err)
-          }
-          chartInstanceRef.current = null
-          candlestickSeriesRef.current = null
-        }
+      if (!container) {
+        console.log("[v0] ⏳ Contenedor no encontrado en el DOM")
+        return
+      }
 
-        // Clean the container
-        console.log("[v0] 🧹 Limpiando contenedor DOM")
-        chartContainerRef.current.innerHTML = ""
+      if (!document.body.contains(container)) {
+        console.log("[v0] ⏳ Contenedor no está en el DOM todavía")
+        return
+      }
 
-        // Small delay to ensure cleanup
-        await new Promise((resolve) => setTimeout(resolve, 50))
+      if (isCreatingRef.current || isDestroyingRef.current) {
+        console.log("[v0] ⏳ Operación en progreso, esperando...")
+        return
+      }
 
-        if (!chartContainerRef.current || !mountedRef.current) {
-          console.log("[v0] ❌ Contenedor desapareció durante la limpieza")
+      console.log("[v0] 🎨 Condiciones cumplidas, creando gráfico TradingView...")
+
+      const createChartInstance = async () => {
+        if (isCreatingRef.current || isDestroyingRef.current) {
+          console.log("[v0] ⏳ Operación en progreso, abortando creación")
           return
         }
 
-        // Create new chart element
-        console.log("[v0] 📦 Creando nuevo elemento del gráfico")
-        const chartElement = document.createElement("div")
-        chartElement.style.width = "100%"
-        chartElement.style.height = "600px"
-        chartContainerRef.current.appendChild(chartElement)
+        isCreatingRef.current = true
 
-        // Create chart instance
-        console.log("[v0] 🎨 Creando instancia del gráfico con lightweight-charts")
-        const chart = createChart(chartElement, {
-          width: chartContainerRef.current.clientWidth,
-          height: 600,
-          layout: {
-            background: { type: ColorType.Solid, color: "rgba(0, 0, 0, 0)" },
-            textColor: "#ffffff",
-          },
-          grid: {
-            vertLines: { color: "rgba(0, 255, 255, 0.1)" },
-            horzLines: { color: "rgba(0, 255, 255, 0.1)" },
-          },
-          crosshair: {
-            mode: CrosshairMode.Normal,
-          },
-          rightPriceScale: {
-            borderColor: "rgba(0, 255, 255, 0.3)",
-          },
-          timeScale: {
-            borderColor: "rgba(0, 255, 255, 0.3)",
-            timeVisible: true,
-            secondsVisible: false,
-          },
-        })
+        try {
+          // Destroy previous instance if exists
+          if (chartInstanceRef.current) {
+            console.log("[v0] 🗑️ Destruyendo instancia anterior del gráfico")
+            isDestroyingRef.current = true
+            try {
+              chartInstanceRef.current.remove()
+            } catch (err) {
+              console.warn("[v0] Error al remover gráfico:", err)
+            }
+            chartInstanceRef.current = null
+            candlestickSeriesRef.current = null
 
-        console.log("[v0] ✅ Instancia del gráfico creada")
-        chartInstanceRef.current = chart
-
-        chart.subscribeClick(handleChartClick)
-        chart.subscribeCrosshairMove(handleChartMouseMove)
-
-        // Create candlestick series
-        console.log("[v0] 📊 Agregando serie de velas al gráfico")
-        const candlestickSeries = chart.addCandlestickSeries({
-          upColor: "#00ff88",
-          downColor: "#ff4444",
-          borderUpColor: "#00ff88",
-          borderDownColor: "#ff4444",
-          wickUpColor: "#00ff88",
-          wickDownColor: "#ff4444",
-        })
-
-        console.log("[v0] ✅ Serie de velas creada")
-        candlestickSeriesRef.current = candlestickSeries
-
-        // Format and set data
-        console.log("[v0] 🔄 Formateando y estableciendo datos de velas...")
-        const formattedData = chartRawData.map((candle) => ({
-          time: Math.floor(new Date(candle.time).getTime() / 1000),
-          open: Number.parseFloat(candle.open),
-          high: Number.parseFloat(candle.high),
-          low: Number.parseFloat(candle.low),
-          close: Number.parseFloat(candle.close),
-        }))
-
-        console.log("[v0] 📊 Estableciendo", formattedData.length, "velas en la serie")
-        candlestickSeries.setData(formattedData)
-
-        // Fit content
-        console.log("[v0] 🎯 Ajustando contenido visible")
-        chart.timeScale().fitContent()
-
-        setIsChartReady(true)
-        console.log("[v0] ✅ Gráfico completamente renderizado y listo")
-
-        setTimeout(() => {
-          if (mountedRef.current) {
-            renderIndicators()
+            await new Promise((resolve) => setTimeout(resolve, 150))
+            isDestroyingRef.current = false
           }
-        }, 100)
-      } catch (error) {
-        console.error("[v0] ❌ Error creando gráfico:", error)
-        showSnackbarRef.current("Error al crear el gráfico", "error")
-      }
-    }
 
-    createChartInstance()
-  }, [chartRawData, chartKey, showSnackbarRef, renderIndicators, handleChartClick, handleChartMouseMove])
+          const container = document.getElementById("tradingview-chart-container")
+
+          if (!container || !mountedRef.current) {
+            console.log("[v0] ❌ Contenedor no disponible")
+            isCreatingRef.current = false
+            return
+          }
+
+          if (!document.body.contains(container)) {
+            console.log("[v0] ❌ Contenedor no está en el DOM")
+            isCreatingRef.current = false
+            return
+          }
+
+          if (typeof window.TradingView === "undefined") {
+            console.log("[v0] ⏳ Esperando que TradingView se cargue...")
+            isCreatingRef.current = false
+            setTimeout(createChartInstance, 100)
+            return
+          }
+
+          console.log("[v0] 🎨 Creando widget de TradingView")
+
+          // Convert timeframe to TradingView format
+          const tvTimeframe = timeframe.replace("M", "").replace("H", "60").replace("D", "D").replace("W", "W")
+
+          const studies = []
+          if (indicators.sma20) studies.push("MASimple@tv-basicstudies")
+          if (indicators.sma50) studies.push("MASimple@tv-basicstudies")
+          if (indicators.ema20) studies.push("MAExp@tv-basicstudies")
+          if (indicators.rsi) studies.push("RSI@tv-basicstudies")
+          if (indicators.macd) studies.push("MACD@tv-basicstudies")
+          if (indicators.bollinger) studies.push("BB@tv-basicstudies")
+
+const widget = new window.TradingView.widget({
+            container_id: "tradingview-chart-container",
+            width: container.clientWidth || 1000,
+            height: 750,
+            symbol: selectedPair,
+            interval: tvTimeframe,
+            timezone: "Etc/UTC",
+            theme: "dark",
+            style: "1", // Candlestick
+            locale: "es",
+            toolbar_bg: "#0a0a0a",
+            enable_publishing: false,
+            hide_side_toolbar: false,
+            allow_symbol_change: false,
+            save_image: false,
+            studies: studies,
+            overrides: {
+              "mainSeriesProperties.candleStyle.upColor": "#00ff88",
+              "mainSeriesProperties.candleStyle.downColor": "#ff4444",
+              "mainSeriesProperties.candleStyle.borderUpColor": "#00ff88",
+              "mainSeriesProperties.candleStyle.borderDownColor": "#ff4444",
+              "mainSeriesProperties.candleStyle.wickUpColor": "#00ff88",
+              "mainSeriesProperties.candleStyle.wickDownColor": "#ff4444",
+              "paneProperties.background": "rgba(0, 0, 0, 0)",
+              "paneProperties.backgroundType": "solid",
+              "paneProperties.vertGridProperties.color": "rgba(0, 255, 255, 0.1)",
+              "paneProperties.horzGridProperties.color": "rgba(0, 255, 255, 0.1)",
+              "scalesProperties.textColor": "#ffffff",
+              "scalesProperties.lineColor": "rgba(0, 255, 255, 0.3)",
+            },
+            disabled_features: [
+              "volume_force_overlay",
+              "header_symbol_search",
+              "symbol_search_hot_key",
+              "header_indicators"
+            ],
+            enabled_features: [
+              "side_toolbar_in_fullscreen_mode",
+              "study_templates",
+              "trading_account_manager",
+              "order_panel",
+              "show_trading_notifications_history",
+              "create_volume_indicator_by_default_once"
+            ],
+            loading_screen: {
+              backgroundColor: "#0a0a0a",
+              foregroundColor: "#00ffff",
+            },
+            datafeed: {
+              onReady: (callback) => {
+                console.log("[v0] 📡 TradingView datafeed ready")
+                setTimeout(
+                  () =>
+                    callback({
+                      supported_resolutions: ["1", "5", "15", "30", "60", "240", "D", "W"],
+                      supports_marks: false,
+                      supports_timescale_marks: false,
+                      supports_time: true,
+                    }),
+                  0,
+                )
+              },
+              searchSymbols: (userInput, exchange, symbolType, onResultReadyCallback) => {
+                console.log("[v0] 🔍 Búsqueda de símbolos:", userInput)
+                onResultReadyCallback([])
+              },
+              resolveSymbol: (symbolName, onSymbolResolvedCallback, onResolveErrorCallback) => {
+                console.log("[v0] 🔍 Resolviendo símbolo:", symbolName)
+                const symbolInfo = {
+                  name: symbolName,
+                  description: symbolName,
+                  type: "forex",
+                  session: "24x7",
+                  timezone: "Etc/UTC",
+                  ticker: symbolName,
+                  exchange: "FOREX",
+                  minmov: 1,
+                  pricescale: symbolName.includes("JPY") ? 100 : 100000,
+                  has_intraday: true,
+                  has_no_volume: true,
+                  supported_resolutions: ["1", "5", "15", "30", "60", "240", "D", "W"],
+                  volume_precision: 0,
+                  data_status: "streaming",
+                }
+                setTimeout(() => onSymbolResolvedCallback(symbolInfo), 0)
+              },
+              getBars: (symbolInfo, resolution, periodParams, onHistoryCallback, onErrorCallback) => {
+                console.log("[v0] 📊 Obteniendo barras:", symbolInfo.name, resolution)
+
+                if (!chartRawData || chartRawData.length === 0) {
+                  onHistoryCallback([], { noData: true })
+                  return
+                }
+
+                const bars = chartRawData.map((candle) => ({
+                  time: new Date(candle.time).getTime(),
+                  open: Number.parseFloat(candle.open),
+                  high: Number.parseFloat(candle.high),
+                  low: Number.parseFloat(candle.low),
+                  close: Number.parseFloat(candle.close),
+                  volume: 0,
+                }))
+
+                console.log("[v0] ✅ Enviando", bars.length, "barras a TradingView")
+                onHistoryCallback(bars, { noData: false })
+              },
+              subscribeBars: (
+                symbolInfo,
+                resolution,
+                onRealtimeCallback,
+                subscriberUID,
+                onResetCacheNeededCallback,
+              ) => {
+                console.log("[v0] 📡 Suscrito a actualizaciones en tiempo real")
+                // Real-time updates would be handled here
+              },
+              unsubscribeBars: (subscriberUID) => {
+                console.log("[v0] 📡 Desuscrito de actualizaciones")
+              },
+            },
+          })
+
+          console.log("[v0] ✅ Widget de TradingView creado")
+          chartInstanceRef.current = widget
+          candlestickSeriesRef.current = widget // Keep reference for compatibility
+
+          setIsChartReady(true)
+          console.log("[v0] ✅ Gráfico TradingView completamente renderizado y listo")
+        } catch (error) {
+          console.error("[v0] ❌ Error creando gráfico TradingView:", error)
+          showSnackbarRef.current("Error al crear el gráfico TradingView", "error")
+        } finally {
+          isCreatingRef.current = false
+        }
+      }
+
+      createChartInstance()
+    }, 300) // Increased debounce time
+
+    return () => clearTimeout(timeoutId)
+  }, [chartRawData, chartKey, showSnackbarRef, selectedPair, timeframe, indicators])
 
   useEffect(() => {
     if (isChartReady && chartInstanceRef.current) {
@@ -1769,11 +1576,26 @@ const Charts = () => {
   }, [isChartReady, drawings, currentDrawing, renderDrawings])
 
   useEffect(() => {
-    if (isChartReady && chartInstanceRef.current && chartRawData) {
-      console.log("[v0] 🔄 Indicadores cambiaron, re-renderizando...")
-      renderIndicators()
+    if (!isChartReady || !chartInstanceRef.current) {
+      return
     }
-  }, [indicators, isChartReady, chartRawData, renderIndicators])
+
+    if (indicatorChangeTimeoutRef.current) {
+      clearTimeout(indicatorChangeTimeoutRef.current)
+    }
+
+    indicatorChangeTimeoutRef.current = setTimeout(() => {
+      console.log("[v0] 🔄 Indicadores cambiaron, recreando gráfico...")
+      // Force chart recreation by incrementing key
+      setChartKey((prev) => prev + 1)
+    }, 500) // Wait 500ms after last indicator change
+
+    return () => {
+      if (indicatorChangeTimeoutRef.current) {
+        clearTimeout(indicatorChangeTimeoutRef.current)
+      }
+    }
+  }, [indicators, isChartReady])
 
   // Simplified the useEffect for handling pair/timeframe changes.
   useEffect(() => {
@@ -1832,15 +1654,7 @@ const Charts = () => {
     const handleResize = () => {
       if (chartInstanceRef.current && chartContainerRef.current) {
         try {
-          // ✅ VERIFICAR SI applyOptions EXISTE
-          if (typeof chartInstanceRef.current.applyOptions === "function") {
-            chartInstanceRef.current.applyOptions({
-              width: chartContainerRef.current.clientWidth,
-            })
-          } else if (typeof chartInstanceRef.current.resize === "function") {
-            // ✅ INTENTAR CON resize COMO FALLBACK
-            chartInstanceRef.current.resize(chartContainerRef.current.clientWidth, 600)
-          }
+          console.log("[v0] 📐 TradingView maneja el redimensionamiento automáticamente")
         } catch (error) {
           console.warn("Error redimensionando gráfico:", error)
         }
@@ -2233,27 +2047,7 @@ const Charts = () => {
                     </Select>
                   </FormControl>
                 </Grid>
-                <Grid item xs={12} sm={6} md={3}>
-                  <FormControl fullWidth>
-                    <InputLabel sx={{ color: "#00ffff" }}>Timeframe Gráfico</InputLabel>
-                    <Select
-                      value={timeframe}
-                      onChange={(e) => setTimeframe(e.target.value)}
-                      sx={{
-                        color: "#ffffff",
-                        "& .MuiOutlinedInput-notchedOutline": {
-                          borderColor: "rgba(0,255,255,0.3)",
-                        },
-                      }}
-                    >
-                      {timeframes.map((tf) => (
-                        <MenuItem key={tf.value} value={tf.value}>
-                          {tf.label}
-                        </MenuItem>
-                      ))}
-                    </Select>
-                  </FormControl>
-                </Grid>
+
                 <Grid item xs={12} sm={6} md={2}>
                   <Button
                     variant="contained"
@@ -2407,148 +2201,7 @@ const Charts = () => {
                 <CardContent>
                   <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 2 }}>
                     <Typography variant="h6" sx={{ color: "#00ffff" }}>
-                      Gráfico de {selectedPair} - TradingView
-                    </Typography>
-                  </Box>
-
-                  <Box
-                    sx={{
-                      mb: 2,
-                      p: 1.5,
-                      backgroundColor: "rgba(0,255,255,0.05)",
-                      borderRadius: 1,
-                      display: "flex",
-                      gap: 1,
-                      flexWrap: "wrap",
-                      alignItems: "center",
-                      border: "1px solid rgba(0,255,255,0.2)",
-                    }}
-                  >
-                    <Typography variant="caption" sx={{ color: "#00ffff", fontWeight: "bold", mr: 1 }}>
-                      🎨 Herramientas de Dibujo:
-                    </Typography>
-                    <Button
-                      size="small"
-                      variant={drawingMode === "line" ? "contained" : "outlined"}
-                      onClick={() => setDrawingMode(drawingMode === "line" ? null : "line")}
-                      sx={{
-                        minWidth: "90px",
-                        borderColor: "#FFD700",
-                        color: drawingMode === "line" ? "#000" : "#FFD700",
-                        backgroundColor: drawingMode === "line" ? "#FFD700" : "transparent",
-                        "&:hover": {
-                          backgroundColor: drawingMode === "line" ? "#FFC700" : "rgba(255,215,0,0.1)",
-                        },
-                      }}
-                    >
-                      📈 Línea
-                    </Button>
-                    <Button
-                      size="small"
-                      variant={drawingMode === "horizontal" ? "contained" : "outlined"}
-                      onClick={() => setDrawingMode(drawingMode === "horizontal" ? null : "horizontal")}
-                      sx={{
-                        minWidth: "100px",
-                        borderColor: "#00BFFF",
-                        color: drawingMode === "horizontal" ? "#000" : "#00BFFF",
-                        backgroundColor: drawingMode === "horizontal" ? "#00BFFF" : "transparent",
-                        "&:hover": {
-                          backgroundColor: drawingMode === "horizontal" ? "#00A0DD" : "rgba(0,191,255,0.1)",
-                        },
-                      }}
-                    >
-                      ↔️ Horizontal
-                    </Button>
-                    <Button
-                      size="small"
-                      variant={drawingMode === "rectangle" ? "contained" : "outlined"}
-                      onClick={() => setDrawingMode(drawingMode === "rectangle" ? null : "rectangle")}
-                      sx={{
-                        minWidth: "110px",
-                        borderColor: "#9370DB",
-                        color: drawingMode === "rectangle" ? "#000" : "#9370DB",
-                        backgroundColor: drawingMode === "rectangle" ? "#9370DB" : "transparent",
-                        "&:hover": {
-                          backgroundColor: drawingMode === "rectangle" ? "#8060CB" : "rgba(147,112,219,0.1)",
-                        },
-                      }}
-                    >
-                      ▭ Rectángulo
-                    </Button>
-                    <Button
-                      size="small"
-                      variant={drawingMode === "fibonacci" ? "contained" : "outlined"}
-                      onClick={() => setDrawingMode(drawingMode === "fibonacci" ? null : "fibonacci")}
-                      sx={{
-                        minWidth: "100px",
-                        borderColor: "#FF69B4",
-                        color: drawingMode === "fibonacci" ? "#000" : "#FF69B4",
-                        backgroundColor: drawingMode === "fibonacci" ? "#FF69B4" : "transparent",
-                        "&:hover": {
-                          backgroundColor: drawingMode === "fibonacci" ? "#FF5099" : "rgba(255,105,180,0.1)",
-                        },
-                      }}
-                    >
-                      🔢 Fibonacci
-                    </Button>
-                    <Box sx={{ flexGrow: 1 }} />
-                    <Button
-                      size="small"
-                      variant="outlined"
-                      onClick={deleteLastDrawing}
-                      disabled={drawings.length === 0}
-                      sx={{
-                        minWidth: "80px",
-                        borderColor: "#FF6B6B",
-                        color: "#FF6B6B",
-                        "&:hover": {
-                          backgroundColor: "rgba(255,107,107,0.1)",
-                        },
-                      }}
-                    >
-                      ↶ Deshacer
-                    </Button>
-                    <Button
-                      size="small"
-                      variant="outlined"
-                      onClick={clearAllDrawings}
-                      disabled={drawings.length === 0}
-                      sx={{
-                        minWidth: "80px",
-                        borderColor: "#FF4444",
-                        color: "#FF4444",
-                        "&:hover": {
-                          backgroundColor: "rgba(255,68,68,0.1)",
-                        },
-                      }}
-                    >
-                      🗑️ Limpiar
-                    </Button>
-                  </Box>
-
-                  {drawingMode && (
-                    <Alert
-                      severity="info"
-                      sx={{
-                        mb: 2,
-                        backgroundColor: "rgba(0,191,255,0.1)",
-                        color: "#00BFFF",
-                        border: "1px solid rgba(0,191,255,0.3)",
-                        "& .MuiAlert-icon": {
-                          color: "#00BFFF",
-                        },
-                      }}
-                    >
-                      {isDrawing
-                        ? "🎯 Haz clic en el gráfico para finalizar el dibujo"
-                        : `✏️ Modo de dibujo activo: ${drawingMode.toUpperCase()}. Haz clic en el gráfico para comenzar.`}
-                    </Alert>
-                  )}
-
-                  <Box sx={{ mb: 2, p: 1, backgroundColor: "rgba(0,255,255,0.05)", borderRadius: 1 }}>
-                    <Typography variant="caption" sx={{ color: "rgba(255,255,255,0.7)" }}>
-                      💡 <strong>Controles:</strong> Scroll para zoom | Arrastrar para desplazar | Doble click para
-                      ajustar vista
+                      Gráfico de {selectedPair}
                     </Typography>
                   </Box>
 
@@ -2564,6 +2217,7 @@ const Charts = () => {
                       <Box sx={{ height: fullscreen ? "80vh" : 600, position: "relative" }}>
                         <ChartErrorBoundary onReset={resetChart}>
                           <div
+                            id="tradingview-chart-container"
                             ref={(el) => {
                               chartContainerRef.current = el
                             }}
@@ -2572,7 +2226,6 @@ const Charts = () => {
                               height: "100%",
                               borderRadius: "8px",
                             }}
-                            key={chartKey} // ✅ Esto ayuda a React a manejar el DOM
                           />
                         </ChartErrorBoundary>
                       </Box>
@@ -2735,22 +2388,13 @@ const Charts = () => {
                               <Typography variant="caption" sx={{ color: "rgba(255,255,255,0.6)" }}>
                                 Entrada: {signal.entry_price?.toFixed(selectedPair.includes("JPY") ? 2 : 5) || "N/A"}
                               </Typography>
-                              <Typography variant="caption" sx={{ color: "rgba(255,255,255,0.6)" }}>
-                                {signal.timeframe || signal.analysis_timeframe}
+                              <Typography variant="caption" sx={{ color: "rgba(255,255,255,0.5)" }}>
+                                {new Date(signal.created_at).toLocaleTimeString([], {
+                                  hour: "2-digit",
+                                  minute: "2-digit",
+                                })}
                               </Typography>
                             </Box>
-                            {signal.created_at && (
-                              <Typography
-                                variant="caption"
-                                sx={{
-                                  color: "rgba(255,255,255,0.5)",
-                                  display: "block",
-                                  mt: 0.5,
-                                }}
-                              >
-                                {new Date(signal.created_at).toLocaleString()}
-                              </Typography>
-                            )}
                           </CardContent>
                         </Card>
                       ))

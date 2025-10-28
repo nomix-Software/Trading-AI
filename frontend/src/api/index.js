@@ -1062,5 +1062,5 @@ api.getCoursesStats = async function() {
   }
 }
 
-// ✅ EXPORTAR LA INSTANCIA DE AXIOS CON TODOS LOS MÉTODOS AGREGADOS
+// ✅ EXPORTAR LA INSTANCIA DE AXIOS CON TODOS LOS MÉTODOS AGREGADOSs
 export default api
