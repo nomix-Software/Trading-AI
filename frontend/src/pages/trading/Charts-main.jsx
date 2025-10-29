@@ -502,6 +502,7 @@ const Charts = () => {
   const renderDrawings = useCallback(() => {
     // TradingView has built-in drawing tools, no need for manual rendering
     console.log("[v0] 🎨 TradingView maneja los dibujos internamente")
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [drawings, currentDrawing])
 
   const deleteLastDrawing = useCallback(() => {
@@ -526,6 +527,7 @@ const Charts = () => {
 
     // TradingView indicators are added through the widget configuration
     // We'll apply them when the chart is created
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [chartRawData, indicators, isDrawing])
 
   const destroyChart = useCallback(() => {
@@ -604,6 +606,7 @@ const Charts = () => {
 
       console.log("[v0] 📊 Precio actualizado:", priceData.price)
     },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [selectedPair, validateDataFreshness],
   )
 
@@ -1143,60 +1146,63 @@ const Charts = () => {
   }, [])
 
   const generateChartImage = useCallback(
-    async (signal) => {
-      if (!signal || chartImageLoading) return
+  async (signal) => {
+    if (!signal || chartImageLoading) return
 
-      const signalId = `${signal._id || signal.id || "unknown"}-${signal.symbol}-${signal.timeframe || signal.analysis_timeframe}-${signal.created_at}`
+    const signalId = `${signal._id || signal.id || "unknown"}-${signal.symbol}-${signal.timeframe || signal.analysis_timeframe}-${signal.created_at}`
 
-      if (currentSignalId === signalId && chartImageUrl) {
-        console.log("Imagen ya generada para esta señal:", signalId)
-        return
-      }
+    if (currentSignalId === signalId && chartImageUrl) {
+      console.log("Imagen ya generada para esta señal:", signalId)
+      return
+    }
 
-      setChartImageLoading(true)
-      setChartImageError(false)
-      setChartImageUrl(null)
-      setCurrentSignalId(signalId)
+    setChartImageLoading(true)
+    setChartImageError(false)
+    setChartImageUrl(null)
+    setCurrentSignalId(signalId)
 
-      try {
-        console.log("Generando imagen del gráfico para:", signal.symbol, signalId)
+    try {
+      console.log("Generando imagen del gráfico para:", signal.symbol, signalId)
 
-        const response = await api.post(
-          "/api/charts/generate",
-          {
-            symbol: signal.symbol,
-            timeframe: signal.timeframe || signal.analysis_timeframe || "H1",
-            signal_data: {
-              entry_price: signal.entry_price,
-              stop_loss: signal.stop_loss,
-              take_profit: signal.take_profit,
-              signal_type: signal.signal_type,
-            },
-            technical_analyses: signal.technical_analyses || [],
+      const response = await api.post(
+        "/api/charts/generate",
+        {
+          symbol: signal.symbol,
+          timeframe: signal.timeframe || signal.analysis_timeframe || "H1",
+          signal_data: {
+            entry_price: signal.entry_price,
+            stop_loss: signal.stop_loss,
+            take_profit: signal.take_profit,
+            signal_type: signal.signal_type,
           },
-          { timeout: 40000 },
-        )
+          technical_analyses: signal.technical_analyses || [],
+        },
+        { timeout: 35000 }, // ✅ Volver a 35 segundos como en el código viejo
+      )
 
-        const imageUrl = response.data?.chart_image_url || response.data?.image_url
+      const imageUrl = response.data?.chart_image_url || response.data?.image_url
 
-        if (imageUrl && mountedRef.current) {
-          setChartImageUrl(imageUrl)
-          setChartImageError(false)
-        } else {
-          generateLocalChartImage(signal)
-        }
-      } catch (error) {
-        console.error("Error generando imagen del gráfico:", error)
-        setChartImageError(true)
+      if (imageUrl && mountedRef.current) {
+        setChartImageUrl(imageUrl)
+        setChartImageError(false)
+        console.log("✅ Imagen generada exitosamente:", imageUrl) // ✅ Agregar log
+      } else {
+        console.warn("⚠️ No se recibió URL de imagen en la respuesta") // ✅ Agregar log
         generateLocalChartImage(signal)
-      } finally {
-        if (mountedRef.current) {
-          setChartImageLoading(false)
-        }
       }
-    },
-    [chartImageLoading, currentSignalId, chartImageUrl, generateLocalChartImage],
-  )
+    } catch (error) {
+      console.error("Error generando imagen del gráfico:", error)
+      console.error("Detalles del error:", error.response?.data || error.message) // ✅ Más detalles
+      setChartImageError(true)
+      generateLocalChartImage(signal)
+    } finally {
+      if (mountedRef.current) {
+        setChartImageLoading(false)
+      }
+    }
+  },
+  [chartImageLoading, currentSignalId, chartImageUrl, generateLocalChartImage],
+)
 
   const handleChartRef = useCallback((chartElement) => {
     if (chartElement && mountedRef.current) {
@@ -1430,7 +1436,7 @@ const Charts = () => {
 const widget = new window.TradingView.widget({
             container_id: "tradingview-chart-container",
             width: container.clientWidth || 1000,
-            height: 750,
+            height: 600,
             symbol: selectedPair,
             interval: tvTimeframe,
             timezone: "Etc/UTC",
