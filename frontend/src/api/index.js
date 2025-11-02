@@ -7,7 +7,7 @@ const API_BASE_URL = import.meta.env.VITE_API_URL || "http://127.0.0.1:8000"
 
 const api = axios.create({
   baseURL: API_BASE_URL,
-  timeout: 3000,
+  timeout: 15000,
   headers: {
     "Content-Type": "application/json",
   },
@@ -631,20 +631,49 @@ api.getSignals = async function(pair, timeframe, limit = 50) {
 
 //  GRÁFICOS Y VISUALIZACIÓN
 
-api.generateChartImage = async function(signalData) {
+//  GRÁFICOS Y VISUALIZACIÓN
+
+api.generateChartImage = async function(signal) {
   try {
-    const response = await api.post("/api/charts/generate", signalData, {
-      timeout: 60000,
+    console.log("📊 Generando imagen del gráfico:", {
+      symbol: signal.symbol,
+      timeframe: signal.timeframe || signal.analysis_timeframe,
+      entry_price: signal.entry_price,
+      stop_loss: signal.stop_loss,
+      take_profit: signal.take_profit,
+      signal_type: signal.signal_type
     })
+
+    const requestData = {
+      symbol: signal.symbol,
+      timeframe: signal.timeframe || signal.analysis_timeframe || "H1",
+      signal_data: {
+        entry_price: signal.entry_price,
+        stop_loss: signal.stop_loss,
+        take_profit: signal.take_profit,
+        signal_type: signal.signal_type,
+      },
+      technical_analyses: signal.technical_analyses || [],
+    }
+
+    console.log("📤 Enviando datos al backend:", requestData)
+
+    const response = await api.post("/api/charts/generate", requestData, {
+      timeout: 40000,
+    })
+
+    console.log("📥 Respuesta del backend:", response.data)
 
     return {
       chart_image_url:
         response.data.chart_image_url ||
         response.data.image_url ||
         response.data.url,
+      trading_levels: response.data.trading_levels, // ✅ Incluir para debug
     }
   } catch (error) {
     console.error("❌ Error generando imagen:", error)
+    console.error("❌ Detalles del error:", error.response?.data)
 
     const errorMessage =
       error.code === "ECONNABORTED"
@@ -657,7 +686,6 @@ api.generateChartImage = async function(signalData) {
     }
   }
 }
-
 api.testChartGeneration = async function() {
   try {
     const response = await api.get("/api/charts/test")

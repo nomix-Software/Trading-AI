@@ -56,32 +56,55 @@ def generate_mock_data(symbol: str, timeframe: str, periods: int = 100) -> pd.Da
 # ---------------------------------------------------------
 @router.post("/generate")
 async def generate_chart_image(
-    signal_data: Dict[str, Any],
+    request_data: Dict[str, Any],  # ✅ Cambio 1: nombre más genérico
     current_user: User = Depends(get_current_user)
 ):
     try:
-        symbol = signal_data.get("symbol")
-        timeframe = signal_data.get("timeframe","H1")
-        technical_analyses = signal_data.get("technical_analyses",[])
-        entry_price = signal_data.get("entry_price")
-        stop_loss = signal_data.get("stop_loss")
-        take_profit = signal_data.get("take_profit")
+        # ✅ Cambio 2: Extraer datos de manera más flexible
+        symbol = request_data.get("symbol")
+        timeframe = request_data.get("timeframe", "H1")
+        technical_analyses = request_data.get("technical_analyses", [])
+        
+        # ✅ Cambio 3: Buscar los precios en múltiples ubicaciones
+        signal_data = request_data.get("signal_data", {})
+        
+        # Intentar obtener precios desde signal_data primero, luego desde el nivel superior
+        entry_price = signal_data.get("entry_price") or request_data.get("entry_price")
+        stop_loss = signal_data.get("stop_loss") or request_data.get("stop_loss")
+        take_profit = signal_data.get("take_profit") or request_data.get("take_profit")
+        signal_type = signal_data.get("signal_type") or request_data.get("signal_type", "buy")
 
         if not symbol:
-            return JSONResponse(status_code=400, content={"error":"Symbol is required"})
+            return JSONResponse(status_code=400, content={"error": "Symbol is required"})
 
-        logger.info(f"Generating enhanced Plotly chart for {symbol} {timeframe}")
+        # ✅ Cambio 4: Validar y convertir precios a float
+        try:
+            entry_price = float(entry_price) if entry_price is not None else None
+            stop_loss = float(stop_loss) if stop_loss is not None else None
+            take_profit = float(take_profit) if take_profit is not None else None
+        except (ValueError, TypeError) as e:
+            logger.warning(f"Error converting prices to float: {e}")
+            entry_price = None
+            stop_loss = None
+            take_profit = None
+
+        # ✅ Cambio 5: Log detallado para debug
+        logger.info(f"📊 Generating chart for {symbol} {timeframe}")
+        logger.info(f"   Entry: {entry_price}, SL: {stop_loss}, TP: {take_profit}")
+        logger.info(f"   Signal Type: {signal_type}")
+        logger.info(f"   Technical Analyses: {len(technical_analyses)}")
 
         if not mt5_provider.connected:
             mt5_provider.connect()
 
-        data = mt5_provider.get_realtime_data(symbol,timeframe,200)
+        data = mt5_provider.get_realtime_data(symbol, timeframe, 200)
         if data is None or data.empty:
             logger.warning(f"No MT5 data for {symbol}, using mock data")
             data = generate_mock_data(symbol, timeframe, 200)
 
         chart_image_url = await create_enhanced_plotly_chart(
-            data, symbol, timeframe, technical_analyses, entry_price, stop_loss, take_profit
+            data, symbol, timeframe, technical_analyses, 
+            entry_price, stop_loss, take_profit, signal_type  # ✅ Pasar signal_type
         )
 
         return JSONResponse(content={
@@ -89,13 +112,18 @@ async def generate_chart_image(
             "symbol": symbol,
             "timeframe": timeframe,
             "generated_at": datetime.utcnow().isoformat(),
-            "data_source": "mt5" if mt5_provider.connected else "mock"
+            "data_source": "mt5" if mt5_provider.connected else "mock",
+            # ✅ Incluir en la respuesta para verificación
+            "trading_levels": {
+                "entry_price": entry_price,
+                "stop_loss": stop_loss,
+                "take_profit": take_profit
+            }
         })
 
     except Exception as e:
-        logger.error(f"Error generating enhanced Plotly chart: {e}", exc_info=True)
-        return JSONResponse(status_code=500, content={"error":str(e)})
-
+        logger.error(f"❌ Error generating chart: {e}", exc_info=True)
+        return JSONResponse(status_code=500, content={"error": str(e)})
 # ---------------------------------------------------------
 # Crear gráfico Plotly MEJORADO con todos los detalles
 # ---------------------------------------------------------
@@ -106,7 +134,8 @@ async def create_enhanced_plotly_chart(
     technical_analyses: List[Dict[str, Any]],
     entry_price: float = None,
     stop_loss: float = None,
-    take_profit: float = None
+    take_profit: float = None,
+    signal_type: str = "buy"  
 ) -> str:
     try:
         fig = go.Figure()

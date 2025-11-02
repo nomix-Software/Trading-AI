@@ -1145,14 +1145,14 @@ const Charts = () => {
     setChartImageError(true)
   }, [])
 
-  const generateChartImage = useCallback(
+const generateChartImage = useCallback(
   async (signal) => {
     if (!signal || chartImageLoading) return
 
     const signalId = `${signal._id || signal.id || "unknown"}-${signal.symbol}-${signal.timeframe || signal.analysis_timeframe}-${signal.created_at}`
 
     if (currentSignalId === signalId && chartImageUrl) {
-      console.log("Imagen ya generada para esta señal:", signalId)
+      console.log("✅ Imagen ya generada para esta señal:", signalId)
       return
     }
 
@@ -1162,37 +1162,45 @@ const Charts = () => {
     setCurrentSignalId(signalId)
 
     try {
-      console.log("Generando imagen del gráfico para:", signal.symbol, signalId)
+      console.log("🎨 Generando imagen del gráfico para:", {
+        symbol: signal.symbol,
+        signalId,
+        entry_price: signal.entry_price,
+        stop_loss: signal.stop_loss,
+        take_profit: signal.take_profit,
+        signal_type: signal.signal_type
+      })
 
-      const response = await api.post(
-        "/api/charts/generate",
-        {
-          symbol: signal.symbol,
-          timeframe: signal.timeframe || signal.analysis_timeframe || "H1",
-          signal_data: {
-            entry_price: signal.entry_price,
-            stop_loss: signal.stop_loss,
-            take_profit: signal.take_profit,
-            signal_type: signal.signal_type,
-          },
-          technical_analyses: signal.technical_analyses || [],
-        },
-        { timeout: 35000 }, // ✅ Volver a 35 segundos como en el código viejo
-      )
+      // ✅ Usar el método del API en lugar de api.post directamente
+      const response = await api.generateChartImage(signal)
 
-      const imageUrl = response.data?.chart_image_url || response.data?.image_url
+      console.log("📥 Respuesta recibida:", response)
 
-      if (imageUrl && mountedRef.current) {
-        setChartImageUrl(imageUrl)
+      if (response.chart_image_url && mountedRef.current) {
+        setChartImageUrl(response.chart_image_url)
         setChartImageError(false)
-        console.log("✅ Imagen generada exitosamente:", imageUrl) // ✅ Agregar log
+        console.log("✅ Imagen generada exitosamente")
+        
+        // ✅ Log para debug de niveles de trading
+        if (response.trading_levels) {
+          console.log("🎯 Niveles de trading aplicados:", response.trading_levels)
+        }
       } else {
-        console.warn("⚠️ No se recibió URL de imagen en la respuesta") // ✅ Agregar log
+        console.warn("⚠️ No se recibió URL de imagen en la respuesta")
         generateLocalChartImage(signal)
       }
     } catch (error) {
-      console.error("Error generando imagen del gráfico:", error)
-      console.error("Detalles del error:", error.response?.data || error.message) // ✅ Más detalles
+      console.error("❌ Error generando imagen del gráfico:", error)
+      console.error("❌ Detalles:", {
+        message: error.message,
+        response: error.response?.data,
+        signal: {
+          symbol: signal.symbol,
+          entry_price: signal.entry_price,
+          stop_loss: signal.stop_loss,
+          take_profit: signal.take_profit
+        }
+      })
       setChartImageError(true)
       generateLocalChartImage(signal)
     } finally {
@@ -1203,7 +1211,6 @@ const Charts = () => {
   },
   [chartImageLoading, currentSignalId, chartImageUrl, generateLocalChartImage],
 )
-
   const handleChartRef = useCallback((chartElement) => {
     if (chartElement && mountedRef.current) {
       try {
@@ -1895,33 +1902,59 @@ const widget = new window.TradingView.widget({
 
   //  Función para ejecutar señal
   const executeSignal = useCallback(
-    async (signal) => {
-      try {
-        console.log("Ejecutando señal:", signal)
-        showSnackbarRef.current(`Ejecutando señal ${signal.signal_type.toUpperCase()} para ${signal.symbol}...`, "info")
+  async (signal) => {
+    try {
+      console.log("Ejecutando señal:", signal)
+      showSnackbarRef.current(`Ejecutando señal ${signal.signal_type.toUpperCase()} para ${signal.symbol}...`, "info")
 
-        const response = await api.post("/api/mt5/execute-trade", {
-          symbol: signal.symbol,
-          action: signal.signal_type.toLowerCase(),
-          volume: signal.calculated_lot_size || 0.1,
-          stop_loss: signal.stop_loss,
-          take_profit: signal.take_profit,
-          comment: `AI Signal - Confluence: ${(signal.confluence_score * 100).toFixed(0)}%`,
-        })
-
-        if (response.data && response.data.success) {
-          showSnackbarRef.current(`✅ Señal ejecutada exitosamente. Ticket: ${response.data.ticket}`, "success")
-        } else {
-          showSnackbarRef.current(`❌ Error ejecutando señal: ${response.data.message}`, "error")
-        }
-      } catch (error) {
-        console.error("Error ejecutando señal:", error)
-        showSnackbarRef.current(`❌ Error ejecutando señal: ${error.message}`, "error")
+      // ✅ CORREGIDO: Usar el endpoint correcto y parámetros esperados
+      const tradeData = {
+        symbol: signal.symbol,
+        signal_type: signal.signal_type.toLowerCase(), // ✅ Cambiado de 'action' a 'signal_type'
+        volume: signal.calculated_lot_size || 0.1,
+        stop_loss: signal.stop_loss,
+        take_profit: signal.take_profit,
+        comment: `AI Signal - Confluence: ${(signal.confluence_score * 100).toFixed(0)}%`,
+        user_id: user?.id,
       }
-    },
-    [showSnackbarRef],
-  )
 
+      console.log("📤 Enviando datos de trade corregidos:", tradeData)
+
+      // ✅ CORREGIDO: Usar el endpoint correcto /api/mt5/execute
+      const response = await api.post("/api/mt5/execute", tradeData)
+
+      if (response.data && response.data.success) {
+        showSnackbarRef.current(`✅ Señal ejecutada exitosamente. Ticket: ${response.data.ticket}`, "success")
+        console.log("✅ Trade ejecutado:", response.data)
+      } else {
+        showSnackbarRef.current(`❌ Error ejecutando señal: ${response.data?.message || "Respuesta inesperada"}`, "error")
+      }
+    } catch (error) {
+      console.error("❌ Error ejecutando señal:", error)
+      
+      // Manejo específico de errores
+      if (error.response?.status === 400) {
+        const errorDetails = error.response.data
+        console.error("❌ Detalles del error 400:", errorDetails)
+        showSnackbarRef.current(
+          `❌ Error en parámetros: ${errorDetails.detail || errorDetails.message || "Parámetros inválidos"}`,
+          "error"
+        )
+      } else if (error.response?.status === 405) {
+        showSnackbarRef.current(
+          `❌ Endpoint no disponible (405). Verifica la configuración del backend.`,
+          "error"
+        )
+      } else {
+        showSnackbarRef.current(
+          `❌ Error ejecutando señal: ${error.message || "Error de conexión"}`,
+          "error"
+        )
+      }
+    }
+  },
+  [showSnackbarRef, user?.id],
+)
   const getSignalTypeColor = useCallback((type) => {
     if (!type) return "#ffffff"
     return type.toLowerCase() === "buy" ? "#00ff88" : "#ff4444"
@@ -2194,81 +2227,122 @@ const widget = new window.TradingView.widget({
               </Box>
             </Grid>
 
-            <Grid item xs={12} lg={6.5}>
-              <Card
+<Grid item xs={12} lg={6.5}>
+  <Card
+    sx={{
+      backgroundColor: "rgba(255,255,255,0.05)",
+      backdropFilter: "blur(10px)",
+      border: "1px solid rgba(0,255,255,0.2)",
+      mb: 3,
+      minHeight: "600px",
+    }}
+  >
+    <CardContent>
+      <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 2 }}>
+        <Typography variant="h6" sx={{ color: "#00ffff" }}>
+          Gráfico de {selectedPair}
+        </Typography>
+        {/* Añadir selector de timeframe aquí si es necesario */}
+        <FormControl size="small" sx={{ minWidth: 120 }}>
+          <InputLabel sx={{ color: "#00ffff" }}>Timeframe</InputLabel>
+          <Select
+            value={timeframe}
+            onChange={(e) => setTimeframe(e.target.value)}
+            sx={{
+              color: "#ffffff",
+              "& .MuiOutlinedInput-notchedOutline": {
+                borderColor: "rgba(0,255,255,0.3)",
+              },
+            }}
+          >
+            {timeframes.map((tf) => (
+              <MenuItem key={tf.value} value={tf.value}>
+                {tf.label}
+              </MenuItem>
+            ))}
+          </Select>
+        </FormControl>
+      </Box>
+
+      <Box sx={{ height: "100%", minHeight: 500 }}>
+        {loading ? (
+          <Box sx={{ height: 600, display: "flex", alignItems: "center", justifyContent: "center" }}>
+            <CircularProgress sx={{ color: "#00ffff" }} />
+            <Typography variant="body1" sx={{ ml: 2, color: "rgba(255,255,255,0.7)" }}>
+              Cargando datos de {selectedPair}...
+            </Typography>
+          </Box>
+        ) : chartRawData ? (
+          // ✅ CONTENEDOR PRINCIPAL PARA TRADINGVIEW
+          <Box 
+            id="tradingview-chart-container"
+            ref={chartContainerRef}
+            sx={{ 
+              width: "100%", 
+              height: 600,
+              position: "relative"
+            }}
+          >
+            {/* Overlay con información en tiempo real */}
+            {realTimePrice && (
+              <Box
                 sx={{
-                  backgroundColor: "rgba(255,255,255,0.05)",
-                  backdropFilter: "blur(10px)",
-                  border: "1px solid rgba(0,255,255,0.2)",
-                  mb: 3,
-                  minHeight: "600px",
+                  position: "absolute",
+                  top: 16,
+                  right: 16,
+                  zIndex: 10,
+                  backgroundColor: "rgba(0, 0, 0, 0.8)",
+                  padding: "8px 12px",
+                  borderRadius: "8px",
+                  border: `2px solid ${getDataFreshnessColor(dataFreshness)}`,
                 }}
               >
-                <CardContent>
-                  <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 2 }}>
-                    <Typography variant="h6" sx={{ color: "#00ffff" }}>
-                      Gráfico de {selectedPair}
-                    </Typography>
-                  </Box>
-
-                  <Box sx={{ height: "100%", minHeight: 500 }}>
-                    {loading ? (
-                      <Box sx={{ height: 600, display: "flex", alignItems: "center", justifyContent: "center" }}>
-                        <CircularProgress sx={{ color: "#00ffff" }} />
-                        <Typography variant="body1" sx={{ ml: 2, color: "rgba(255,255,255,0.7)" }}>
-                          Cargando datos de {selectedPair}...
-                        </Typography>
-                      </Box>
-                    ) : chartRawData ? (
-                      <Box sx={{ height: fullscreen ? "80vh" : 600, position: "relative" }}>
-                        <ChartErrorBoundary onReset={resetChart}>
-                          <div
-                            id="tradingview-chart-container"
-                            ref={(el) => {
-                              chartContainerRef.current = el
-                            }}
-                            style={{
-                              width: "100%",
-                              height: "100%",
-                              borderRadius: "8px",
-                            }}
-                          />
-                        </ChartErrorBoundary>
-                      </Box>
-                    ) : (
-                      <Box
-                        sx={{
-                          height: 600,
-                          display: "flex",
-                          flexDirection: "column",
-                          alignItems: "center",
-                          justifyContent: "center",
-                          gap: 2,
-                        }}
-                      >
-                        <ShowChart sx={{ fontSize: 64, color: "rgba(255,255,255,0.3)" }} />
-                        <Typography variant="body1" sx={{ color: "rgba(255,255,255,0.7)" }}>
-                          Selecciona un par para ver el gráfico
-                        </Typography>
-                        <Button
-                          variant="outlined"
-                          onClick={loadRealChartData}
-                          sx={{
-                            borderColor: "#00ffff",
-                            color: "#00ffff",
-                            "&:hover": {
-                              backgroundColor: "rgba(0,255,255,0.1)",
-                            },
-                          }}
-                        >
-                          Cargar Datos
-                        </Button>
-                      </Box>
-                    )}
-                  </Box>
-                </CardContent>
-              </Card>
-            </Grid>
+                <Typography variant="body2" sx={{ color: "#ffffff", fontWeight: "bold" }}>
+                  Precio actual: {realTimePrice.toFixed(selectedPair.includes("JPY") ? 2 : 5)}
+                </Typography>
+                <Typography variant="caption" sx={{ color: getDataFreshnessColor(dataFreshness) }}>
+                  {dataFreshness === "fresh" && "🟢 Datos en vivo"}
+                  {dataFreshness === "recent" && "🟡 Datos recientes"}
+                  {dataFreshness === "stale" && "🔴 Datos obsoletos"}
+                  {dataFreshness === "simulated" && "🟣 Simulado"}
+                </Typography>
+              </Box>
+            )}
+          </Box>
+        ) : (
+          <Box
+            sx={{
+              height: 600,
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              justifyContent: "center",
+              gap: 2,
+            }}
+          >
+            <ShowChart sx={{ fontSize: 64, color: "rgba(255,255,255,0.3)" }} />
+            <Typography variant="body1" sx={{ color: "rgba(255,255,255,0.7)" }}>
+              Selecciona un par para ver el gráfico
+            </Typography>
+            <Button
+              variant="outlined"
+              onClick={loadRealChartData}
+              sx={{
+                borderColor: "#00ffff",
+                color: "#00ffff",
+                "&:hover": {
+                  backgroundColor: "rgba(0,255,255,0.1)",
+                },
+              }}
+            >
+              Cargar Datos
+            </Button>
+          </Box>
+        )}
+      </Box>
+    </CardContent>
+  </Card>
+</Grid>
 
             {/* Panel de señales */}
             <Grid item xs={12} lg={3}>

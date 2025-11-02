@@ -47,7 +47,6 @@ const SignalDetailsDialog = ({
   dataFreshness,
   connectionQuality,
   aiSettings,
-  currentSignalId,
   setSignalDetailsOpen,
   setChartImageUrl,
   setChartImageError,
@@ -66,7 +65,7 @@ const SignalDetailsDialog = ({
   const signal = useMemo(() => selectedSignalDetails, [selectedSignalDetails])
   const signalId = useMemo(() => {
     if (!signal) return null
-    return `${signal._id || signal.id}-${signal.symbol}-${signal.timeframe}-${signal.created_at}`
+    return `${signal._id || signal.id}-${signal.symbol}-${signal.timeframe || signal.analysis_timeframe}-${signal.created_at}`
   }, [signal])
 
   const [localStates, setLocalStates] = useState({
@@ -76,6 +75,7 @@ const SignalDetailsDialog = ({
     localChartImageUrl: null,
     localChartImageLoading: false,
     localChartImageError: false,
+    flowStep: 'idle', // 'idle' | 'generating_chart' | 'chart_ready' | 'updating_price' | 'complete'
   })
 
   const currentPriceForSignal = useMemo(() => {
@@ -178,6 +178,7 @@ const SignalDetailsDialog = ({
       localChartImageUrl: null,
       localChartImageLoading: false,
       localChartImageError: false,
+      flowStep: 'idle',
     })
   }, [
     setSignalDetailsOpen,
@@ -195,6 +196,7 @@ const SignalDetailsDialog = ({
         imageGenerationAttempted: false,
         localChartImageError: false,
         localChartImageUrl: null,
+        flowStep: 'generating_chart',
       }))
       setChartImageError(false)
       setChartImageUrl(null)
@@ -204,19 +206,54 @@ const SignalDetailsDialog = ({
     }
   }, [signal, generateChartImage, setChartImageUrl, setChartImageError, setCurrentSignalId])
 
-  useEffect(() => {
-    if (
-      signalDetailsOpen &&
-      signal &&
-      signalId &&
-      !localStates.imageGenerationAttempted &&
-      currentSignalId !== signalId
-    ) {
-      console.log("Generando imagen del gráfico para señal:", signalId)
-      setLocalStates((prev) => ({ ...prev, imageGenerationAttempted: true }))
-      generateChartImage(signal)
+  // ✅ Función para ejecutar el flujo secuencial
+  const executeSequentialFlow = useCallback(async () => {
+    if (!signal || !signalDetailsOpen) return
+    
+    console.log("🔄 Iniciando flujo secuencial para señal...")
+    
+    try {
+      // Paso 1: Generar imagen del gráfico
+      setLocalStates(prev => ({ ...prev, flowStep: 'generating_chart' }))
+      console.log("🎨 Paso 1: Generando imagen del gráfico...")
+      
+      await generateChartImage(signal)
+      
+      // Paso 2: Esperar a que la imagen esté lista
+      setLocalStates(prev => ({ ...prev, flowStep: 'chart_ready' }))
+      console.log("✅ Paso 1 completado: Imagen del gráfico generada")
+      
+      // Pequeño delay para asegurar que la imagen se muestre
+      await new Promise(resolve => setTimeout(resolve, 500))
+      
+      // Paso 3: Actualizar precio automáticamente
+      setLocalStates(prev => ({ ...prev, flowStep: 'updating_price' }))
+      console.log("💰 Paso 2: Actualizando precio automáticamente...")
+      
+      if (getMT5DataForPair) {
+        await getMT5DataForPair(signal.symbol, true)
+      }
+      
+      // Paso 4: Flujo completado
+      setLocalStates(prev => ({ ...prev, flowStep: 'complete' }))
+      console.log("✅ Flujo secuencial completado")
+      
+    } catch (error) {
+      console.error("❌ Error en flujo secuencial:", error)
+      setLocalStates(prev => ({ ...prev, flowStep: 'complete' }))
     }
-  }, [signalDetailsOpen, signalId, localStates.imageGenerationAttempted, currentSignalId, generateChartImage, signal])
+  }, [signal, signalDetailsOpen, generateChartImage, getMT5DataForPair])
+
+  // ✅ useEffect principal con nuevo flujo secuencial
+  useEffect(() => {
+    if (signalDetailsOpen && signal && signalId && !localStates.imageGenerationAttempted) {
+      console.log("🚀 Diálogo abierto - Ejecutando flujo secuencial para señal:", signalId)
+      setLocalStates((prev) => ({ ...prev, imageGenerationAttempted: true }))
+      
+      // Ejecutar flujo secuencial
+      executeSequentialFlow()
+    }
+  }, [signalDetailsOpen, signalId, localStates.imageGenerationAttempted, executeSequentialFlow, signal])
 
   useEffect(() => {
     if (!signalDetailsOpen) {
@@ -225,16 +262,10 @@ const SignalDetailsDialog = ({
         imageGenerationAttempted: false,
         isUpdatingPrice: false,
         lastManualUpdate: null,
+        flowStep: 'idle',
       }))
     }
   }, [signalDetailsOpen])
-
-  useEffect(() => {
-    if (signalDetailsOpen && signal && signal?.symbol && !multiPairPrices[signal.symbol]) {
-      console.log("Obteniendo precio inicial para señal:", signal.symbol)
-      getMT5DataForPair(signal.symbol)
-    }
-  }, [signalDetailsOpen, signal, multiPairPrices, getMT5DataForPair])
 
   const signalDataStatus = useMemo(() => {
     if (!signal) return { isLive: false, status: "unknown", quality: "unknown" }
@@ -283,6 +314,22 @@ const SignalDetailsDialog = ({
     return generateNaturalLanguageExplanation(signal)
   }, [signal, generateNaturalLanguageExplanation])
 
+  // ✅ Indicador de estado del flujo
+  const getFlowStatusText = () => {
+    switch (localStates.flowStep) {
+      case 'generating_chart':
+        return "🔄 Generando gráfico..."
+      case 'chart_ready':
+        return "✅ Gráfico listo - Actualizando precio..."
+      case 'updating_price':
+        return "🔄 Actualizando precio..."
+      case 'complete':
+        return "✅ Todo listo"
+      default:
+        return null
+    }
+  }
+
   if (!signal) return null
 
   return (
@@ -312,6 +359,19 @@ const SignalDetailsDialog = ({
                   backgroundColor: "#9c27b0",
                   color: "#ffffff",
                   fontSize: "12px",
+                }}
+              />
+            )}
+            {/* ✅ Indicador de estado del flujo */}
+            {getFlowStatusText() && (
+              <Chip
+                label={getFlowStatusText()}
+                size="small"
+                sx={{
+                  ml: 2,
+                  backgroundColor: "rgba(0,255,255,0.2)",
+                  color: "#00ffff",
+                  fontSize: "11px",
                 }}
               />
             )}
